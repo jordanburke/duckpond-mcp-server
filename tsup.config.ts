@@ -7,7 +7,7 @@ export const tsup: Options = {
   sourcemap: true,
   clean: true, // rimraf disr
   dts: true, // generate dts file for main module
-  format: ["cjs", "esm"], // generate cjs and esm files
+  format: ["esm"], // ESM only - functype requires ESM
   minify: env === "production",
   bundle: env === "production",
   skipNodeModulesBundle: true,

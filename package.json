@@ -1,19 +1,29 @@
 {
-  "name": "-template",
-  "version": "6.0.0",
-  "description": "A basic template for creating a TypeScript library and Publishing it to NPM.",
+  "name": "duckpond-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for multi-tenant DuckDB management with R2/S3 storage",
   "keywords": [
-    "typescript",
-    "template",
-    "tsup",
-    "npm"
+    "mcp",
+    "model-context-protocol",
+    "duckdb",
+    "duckpond",
+    "r2",
+    "s3",
+    "cloudflare",
+    "multi-tenant",
+    "analytics",
+    "typescript"
   ],
   "author": "jordan.burke@gmail.com",
   "license": "MIT",
-  "homepage": "https://github.com/jordanburke/typescript-library-template",
+  "homepage": "https://github.com/jordanburke/duckpond-mcp-server",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jordanburke/typescript-library-template"
+    "url": "https://github.com/jordanburke/duckpond-mcp-server"
+  },
+  "type": "module",
+  "bin": {
+    "duckpond-mcp-server": "./dist/index.js"
   },
   "scripts": {
     "validate": "pnpm format && pnpm lint && pnpm test && pnpm build",
@@ -28,8 +38,17 @@
     "build": "rimraf dist && cross-env NODE_ENV=production tsup",
     "build:watch": "tsup --watch",
     "dev": "tsup --watch",
+    "serve:test": "tsx src/index.ts",
+    "serve:test:http": "tsx src/index.ts --transport http",
     "prepublishOnly": "pnpm validate",
     "ts-types": "tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "commander": "^12.1.0",
+    "debug": "^4.4.3",
+    "duckpond": "^0.1.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
@@ -50,17 +69,17 @@
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
   "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "require": "./dist/index.js",
-      "import": "./dist/index.mjs"
+      "import": "./dist/index.js"
     }
   },
   "files": [
