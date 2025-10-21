@@ -1,8 +1,17 @@
 #!/usr/bin/env node
 
+// Polyfill for Web Crypto API in Node.js environments
+import { webcrypto } from "crypto"
+
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto as Crypto
+}
+
 import { Command } from "commander"
 
 import type { DuckPondServerConfig } from "./server-core"
+import type { OAuthConfig } from "./server-fastmcp"
+import { startFastMCPServer } from "./server-fastmcp"
 import { startStdioServer } from "./server-stdio"
 import { loggers } from "./utils/logger"
 
@@ -76,8 +85,56 @@ program
       if (options.transport === "stdio") {
         await startStdioServer(config)
       } else if (options.transport === "http") {
-        log("HTTP transport not yet implemented")
-        process.exit(1)
+        // Load OAuth configuration from environment variables
+        let oauthConfig: OAuthConfig | undefined
+        if (process.env.DUCKPOND_OAUTH_ENABLED === "true") {
+          const username = process.env.DUCKPOND_OAUTH_USERNAME
+          const password = process.env.DUCKPOND_OAUTH_PASSWORD
+
+          if (!username || !password) {
+            console.error("❌ OAuth enabled but DUCKPOND_OAUTH_USERNAME and DUCKPOND_OAUTH_PASSWORD are required")
+            process.exit(1)
+          }
+
+          oauthConfig = {
+            enabled: true,
+            username,
+            password,
+            userId: process.env.DUCKPOND_OAUTH_USER_ID || username,
+            email: process.env.DUCKPOND_OAUTH_EMAIL,
+            issuer: process.env.DUCKPOND_OAUTH_ISSUER || `http://localhost:${parseInt(options.port) || 3000}`,
+            resource: process.env.DUCKPOND_OAUTH_RESOURCE,
+          }
+
+          console.error("🔐 OAuth enabled with username/password authentication")
+          console.error(`   Username: ${oauthConfig.username}`)
+          console.error(`   User ID: ${oauthConfig.userId}`)
+          console.error("   ✓ Login form will be shown at authorization endpoint")
+        }
+
+        // Load Basic Auth configuration from environment variables
+        let basicAuthConfig: { username: string; password: string; userId?: string; email?: string } | undefined
+        if (process.env.DUCKPOND_BASIC_AUTH_USERNAME && process.env.DUCKPOND_BASIC_AUTH_PASSWORD) {
+          basicAuthConfig = {
+            username: process.env.DUCKPOND_BASIC_AUTH_USERNAME,
+            password: process.env.DUCKPOND_BASIC_AUTH_PASSWORD,
+            userId: process.env.DUCKPOND_BASIC_AUTH_USER_ID,
+            email: process.env.DUCKPOND_BASIC_AUTH_EMAIL,
+          }
+
+          console.error("🔐 Basic authentication enabled")
+          console.error(`   Username: ${basicAuthConfig.username}`)
+          console.error(`   User ID: ${basicAuthConfig.userId || basicAuthConfig.username}`)
+        }
+
+        // Start FastMCP HTTP server
+        await startFastMCPServer({
+          config,
+          port: parseInt(options.port) || 3000,
+          endpoint: "/mcp",
+          oauth: oauthConfig,
+          basicAuth: basicAuthConfig,
+        })
       } else {
         log(`Unknown transport: ${options.transport}`)
         process.exit(1)

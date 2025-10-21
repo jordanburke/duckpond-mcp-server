@@ -4,9 +4,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a TypeScript library template designed to be cloned/forked for creating new npm packages. It provides standardized build scripts, modern tooling, and dual module format support (CommonJS + ES modules).
+This is an MCP (Model Context Protocol) server that exposes DuckPond's multi-tenant DuckDB capabilities to AI agents. The server enables agents to manage per-user databases, execute SQL queries, and leverage R2/S3 cloud storage through a standardized MCP interface.
 
-**Template Usage**: See STANDARDIZATION_GUIDE.md for instructions on applying this pattern to other TypeScript projects.
+**Implementation Plan**: See docs/PLAN_MCP_SERVER.md for the complete implementation roadmap.
+
+## Skills to Use
+
+**IMPORTANT**: Always use these skills when working on this project:
+
+### functype-user
+
+This project uses functype patterns extensively through the duckpond library dependency:
+
+- Use the `functype-user` skill when converting imperative/OOP code to functional patterns
+- Consult the functype-user skill for API lookups and method usage
+- The duckpond library returns `Either<Error, T>` for error handling - use functype-user skill for Either operations
+- Reference the FUNCTYPE_FEATURE_MATRIX.md in global CLAUDE.md for data structure capabilities
+
+### typescript-standards
+
+This project follows the typescript-library-template pattern:
+
+- Use the `typescript-standards` skill when setting up build scripts, tooling, or package configuration
+- Follow dual module format patterns (ESM + CJS)
+- Consult the skill for tsup, Vitest, ESLint, and Prettier configuration standards
 
 ## Development Commands
 

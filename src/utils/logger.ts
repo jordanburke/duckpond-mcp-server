@@ -6,6 +6,7 @@ import debug from "debug"
 export const loggers = {
   core: debug("duckpond-mcp:core"),
   stdio: debug("duckpond-mcp:stdio"),
+  fastmcp: debug("duckpond-mcp:fastmcp"),
   tools: debug("duckpond-mcp:tools"),
   main: debug("duckpond-mcp:main"),
 }
