@@ -43,6 +43,11 @@ export const detachUserSchema = z.object({
 })
 
 /**
+ * Zod schema for listUsers tool
+ */
+export const listUsersSchema = z.object({})
+
+/**
  * Tool implementations for MCP server
  */
 export const tools = {
@@ -183,6 +188,27 @@ export const tools = {
             null,
             2,
           ),
+        },
+      ],
+    }
+  },
+
+  /**
+   * List all currently cached users
+   */
+  listUsers(server: DuckPondServer, _input: z.infer<typeof listUsersSchema>) {
+    log("Tool: listUsers")
+    const result = server.listUsers()
+
+    if (!result.success) {
+      throw new Error(result.error.message)
+    }
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(result.data, null, 2),
         },
       ],
     }

@@ -12,7 +12,14 @@ import { URL } from "url"
 import { z } from "zod"
 
 import { DuckPondServer, type DuckPondServerConfig } from "./server-core"
-import { detachUserSchema, executeSchema, getUserStatsSchema, isAttachedSchema, querySchema } from "./tools"
+import {
+  detachUserSchema,
+  executeSchema,
+  getUserStatsSchema,
+  isAttachedSchema,
+  listUsersSchema,
+  querySchema,
+} from "./tools"
 import { loggers } from "./utils/logger"
 
 const log = loggers.fastmcp
@@ -457,50 +464,68 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
     },
   })
 
+  // Add listUsers tool
+  server.addTool({
+    name: "listUsers",
+    description: "List all currently cached users and cache statistics",
+    parameters: listUsersSchema,
+    execute: async () => {
+      try {
+        const result = duckpond.listUsers()
+
+        if (!result.success) {
+          return `ERROR: ${result.error.message}`
+        }
+
+        return JSON.stringify(result.data, null, 2)
+      } catch (error) {
+        log("Error in listUsers tool:", error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        return `ERROR: ${JSON.stringify({ error: errorMessage }, null, 2)}`
+      }
+    },
+  })
+
   // Add OAuth flow endpoints if OAuth is enabled
   if (options.oauth?.enabled) {
     setupOAuthEndpoints(server, options)
   }
 
-  // Add root info endpoint
-  server.addRoute(
-    "GET",
-    "/",
-    (_req, res) => {
-      const baseUrl = options.oauth?.issuer || `http://localhost:${options.port || 3000}`
+  // Add root info endpoint using Hono
+  const app = server.getApp()
+  app.get("/", (c) => {
+    const baseUrl = options.oauth?.issuer || `http://localhost:${options.port || 3000}`
 
-      const serverInfo = {
-        name: "DuckPond MCP Server",
-        version: "0.1.0",
-        description: "Model Context Protocol server for multi-tenant DuckDB with R2/S3 storage",
-        service: "duckpond-mcp-server",
-        capabilities: {
-          tools: ["query", "execute", "getUserStats", "isAttached", "detachUser"],
-          transports: ["stdio", "http"],
-          authentication: {
-            oauth: options.oauth?.enabled || false,
-            basicAuth: !!options.basicAuth,
+    const serverInfo = {
+      name: "DuckPond MCP Server",
+      version: "0.1.0",
+      description: "Model Context Protocol server for multi-tenant DuckDB with R2/S3 storage",
+      service: "duckpond-mcp-server",
+      capabilities: {
+        tools: ["query", "execute", "getUserStats", "isAttached", "detachUser", "listUsers"],
+        transports: ["stdio", "http"],
+        authentication: {
+          oauth: options.oauth?.enabled || false,
+          basicAuth: !!options.basicAuth,
+        },
+      },
+      endpoints: {
+        mcp: `${baseUrl}${options.endpoint || "/mcp"}`,
+        health: `${baseUrl}/health`,
+        ...(options.oauth?.enabled && {
+          oauth: {
+            authorization: `${baseUrl}/oauth/authorize`,
+            token: `${baseUrl}/oauth/token`,
+            jwks: `${baseUrl}/oauth/jwks`,
+            register: `${baseUrl}/oauth/register`,
           },
-        },
-        endpoints: {
-          mcp: `${baseUrl}${options.endpoint || "/mcp"}`,
-          health: `${baseUrl}/health`,
-          ...(options.oauth?.enabled && {
-            oauth: {
-              authorization: `${baseUrl}/oauth/authorize`,
-              token: `${baseUrl}/oauth/token`,
-              jwks: `${baseUrl}/oauth/jwks`,
-              register: `${baseUrl}/oauth/register`,
-            },
-          }),
-        },
-        timestamp: new Date().toISOString(),
-      }
+        }),
+      },
+      timestamp: new Date().toISOString(),
+    }
 
-      res.json(serverInfo)
-    },
-    { public: true },
-  )
+    return c.json(serverInfo)
+  })
 
   log("✓ FastMCP server created")
 
@@ -508,6 +533,8 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
 }
 
 function setupOAuthEndpoints(server: FastMCP, options: FastMCPServerOptions): void {
+  const app = server.getApp()
+
   // Clean up old codes and refresh tokens every minute
   setInterval(() => {
     const now = Date.now()
@@ -520,54 +547,56 @@ function setupOAuthEndpoints(server: FastMCP, options: FastMCPServerOptions): vo
     // Clean refresh tokens (30 days)
     for (const [token, data] of refreshTokens.entries()) {
       if (now - data.createdAt > 2592000000) {
-        // 30 days
         refreshTokens.delete(token)
       }
     }
   }, 60000)
 
   // OAuth Authorization Endpoint - Login Form
-  server.addRoute(
-    "GET",
-    "/oauth/authorize",
-    (req, res) => {
-      const params = req.query
-      const responseType = params.response_type as string
-      const redirectUri = params.redirect_uri as string
-      const state = params.state as string
-      const codeChallenge = params.code_challenge as string
-      const codeChallengeMethod = params.code_challenge_method as string
-      const clientId = params.client_id as string
+  app.get("/oauth/authorize", (c) => {
+    const params = c.req.query()
+    const responseType = params.response_type
+    const redirectUri = params.redirect_uri
+    const state = params.state
+    const codeChallenge = params.code_challenge
+    const codeChallengeMethod = params.code_challenge_method
+    const clientId = params.client_id
 
-      if (responseType !== "code") {
-        res.status(400).json({
+    if (responseType !== "code") {
+      return c.json(
+        {
           error: "unsupported_response_type",
           error_description: "Only 'code' response type is supported",
-        })
-        return
-      }
+        },
+        400,
+      )
+    }
 
-      if (!redirectUri) {
-        res.status(400).json({
+    if (!redirectUri) {
+      return c.json(
+        {
           error: "invalid_request",
           error_description: "redirect_uri is required",
-        })
-        return
-      }
+        },
+        400,
+      )
+    }
 
-      // Validate PKCE parameters if present
-      if (codeChallenge) {
-        if (!codeChallengeMethod || !["S256", "plain"].includes(codeChallengeMethod)) {
-          res.status(400).json({
+    // Validate PKCE parameters if present
+    if (codeChallenge) {
+      if (!codeChallengeMethod || !["S256", "plain"].includes(codeChallengeMethod)) {
+        return c.json(
+          {
             error: "invalid_request",
             error_description: "Invalid code_challenge_method. Only 'S256' and 'plain' are supported",
-          })
-          return
-        }
+          },
+          400,
+        )
       }
+    }
 
-      // Serve login form
-      const loginForm = `
+    // Serve login form
+    const loginForm = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -612,191 +641,100 @@ function setupOAuthEndpoints(server: FastMCP, options: FastMCPServerOptions): vo
 </body>
 </html>`
 
-      res.send(loginForm)
-    },
-    { public: true },
-  )
+    return c.html(loginForm)
+  })
 
   // OAuth Authorization POST - Process Login
-  server.addRoute(
-    "POST",
-    "/oauth/authorize",
-    async (req, res) => {
-      try {
-        const body = await req.text()
-        const params = new URLSearchParams(body)
+  app.post("/oauth/authorize", async (c) => {
+    try {
+      const body = await c.req.text()
+      const params = new URLSearchParams(body)
 
-        const username = params.get("username")
-        const password = params.get("password")
-        const redirectUri = params.get("redirect_uri")
-        const state = params.get("state")
-        const codeChallenge = params.get("code_challenge")
-        const codeChallengeMethod = params.get("code_challenge_method")
+      const username = params.get("username")
+      const password = params.get("password")
+      const redirectUri = params.get("redirect_uri")
+      const state = params.get("state")
+      const codeChallenge = params.get("code_challenge")
+      const codeChallengeMethod = params.get("code_challenge_method")
 
-        // Validate credentials
-        if (username !== options.oauth?.username || password !== options.oauth?.password) {
-          const errorForm = `
+      // Validate credentials
+      if (username !== options.oauth?.username || password !== options.oauth?.password) {
+        const errorForm = `
 <!DOCTYPE html>
 <html><head><title>Login Failed</title><style>body{font-family:Arial;max-width:400px;margin:100px auto;padding:20px;}.error{color:red;background:#fee;padding:10px;border-radius:4px;margin-bottom:15px;}</style></head>
 <body><div class="error">❌ Invalid username or password</div><a href="javascript:history.back()">← Try Again</a></body></html>`
-          res.status(401).send(errorForm)
-          return
-        }
+        return c.html(errorForm, 401)
+      }
 
-        // Generate authorization code
-        const code = randomBytes(16).toString("hex")
-        authorizationCodes.set(code, {
-          createdAt: Date.now(),
-          redirectUri: redirectUri || "",
-          codeChallenge: codeChallenge || undefined,
-          codeChallengeMethod: codeChallengeMethod || undefined,
-          userId: options.oauth?.userId || username || "oauth-user",
-        })
+      // Generate authorization code
+      const code = randomBytes(16).toString("hex")
+      authorizationCodes.set(code, {
+        createdAt: Date.now(),
+        redirectUri: redirectUri || "",
+        codeChallenge: codeChallenge || undefined,
+        codeChallengeMethod: codeChallengeMethod || undefined,
+        userId: options.oauth?.userId || username || "oauth-user",
+      })
 
-        // Redirect with authorization code
-        const redirectUrl = new URL(redirectUri || "")
-        redirectUrl.searchParams.set("code", code)
-        if (state) {
-          redirectUrl.searchParams.set("state", state)
-        }
+      // Redirect with authorization code
+      const redirectUrl = new URL(redirectUri || "")
+      redirectUrl.searchParams.set("code", code)
+      if (state) {
+        redirectUrl.searchParams.set("state", state)
+      }
 
-        res.status(302).setHeader("Location", redirectUrl.toString()).end()
-      } catch {
-        res.status(400).json({
+      return c.redirect(redirectUrl.toString(), 302)
+    } catch {
+      return c.json(
+        {
           error: "invalid_request",
           error_description: "Failed to process authorization request",
-        })
-      }
-    },
-    { public: true },
-  )
+        },
+        400,
+      )
+    }
+  })
 
   // OAuth Token Endpoint
-  server.addRoute(
-    "POST",
-    "/oauth/token",
-    async (req, res) => {
-      const body = await req.text()
-      const params = new URLSearchParams(body)
-      const grantType = params.get("grant_type")
-      const code = params.get("code")
-      const redirectUri = params.get("redirect_uri")
-      const codeVerifier = params.get("code_verifier")
-      const refreshTokenParam = params.get("refresh_token")
+  app.post("/oauth/token", async (c) => {
+    const body = await c.req.text()
+    const params = new URLSearchParams(body)
+    const grantType = params.get("grant_type")
+    const code = params.get("code")
+    const redirectUri = params.get("redirect_uri")
+    const codeVerifier = params.get("code_verifier")
+    const refreshTokenParam = params.get("refresh_token")
 
-      if (grantType === "refresh_token") {
-        // Handle refresh token flow
-        if (!refreshTokenParam) {
-          res.status(400).json({
+    if (grantType === "refresh_token") {
+      // Handle refresh token flow
+      if (!refreshTokenParam) {
+        return c.json(
+          {
             error: "invalid_request",
             error_description: "refresh_token is required for refresh_token grant type",
-          })
-          return
-        }
+          },
+          400,
+        )
+      }
 
-        const tokenData = refreshTokens.get(refreshTokenParam)
-        if (!tokenData) {
-          res.status(400).json({
+      const tokenData = refreshTokens.get(refreshTokenParam)
+      if (!tokenData) {
+        return c.json(
+          {
             error: "invalid_grant",
             error_description: "Invalid or expired refresh token",
-          })
-          return
-        }
-
-        // Remove old refresh token (token rotation)
-        refreshTokens.delete(refreshTokenParam)
-
-        // Generate new JWT access token
-        const accessTokenPayload = {
-          sub: tokenData.userId,
-          email: tokenData.email || "",
-          scope: "read write",
-          iat: Math.floor(Date.now() / 1000),
-          exp: Math.floor(Date.now() / 1000) + JWT_EXPIRES_IN,
-          iss: options.oauth?.issuer || `http://localhost:${options.port || 3000}`,
-          aud: options.oauth?.resource || `${options.oauth?.issuer || `http://localhost:${options.port || 3000}`}/mcp`,
-        }
-
-        // Generate new refresh token
-        const newRefreshToken = randomBytes(32).toString("hex")
-        refreshTokens.set(newRefreshToken, {
-          createdAt: Date.now(),
-          userId: tokenData.userId,
-          email: tokenData.email,
-        })
-
-        const accessToken = jwt.sign(accessTokenPayload, JWT_SECRET)
-
-        res.json({
-          access_token: accessToken,
-          token_type: "Bearer",
-          expires_in: JWT_EXPIRES_IN,
-          scope: "read write",
-          refresh_token: newRefreshToken,
-        })
-        return
+          },
+          400,
+        )
       }
 
-      if (grantType !== "authorization_code") {
-        res.status(400).json({
-          error: "unsupported_grant_type",
-          error_description: "Only 'authorization_code' and 'refresh_token' grant types are supported",
-        })
-        return
-      }
+      // Remove old refresh token (token rotation)
+      refreshTokens.delete(refreshTokenParam)
 
-      const codeData = authorizationCodes.get(code || "")
-      if (!codeData) {
-        res.status(400).json({
-          error: "invalid_grant",
-          error_description: "Invalid or expired authorization code",
-        })
-        return
-      }
-
-      // Validate redirect_uri matches
-      if (codeData.redirectUri && codeData.redirectUri !== redirectUri) {
-        res.status(400).json({
-          error: "invalid_grant",
-          error_description: "redirect_uri mismatch",
-        })
-        return
-      }
-
-      // Validate PKCE if code_challenge was provided
-      if (codeData.codeChallenge) {
-        if (!codeVerifier) {
-          res.status(400).json({
-            error: "invalid_grant",
-            error_description: "code_verifier is required when code_challenge was used",
-          })
-          return
-        }
-
-        let expectedChallenge: string
-        if (codeData.codeChallengeMethod === "S256") {
-          expectedChallenge = createHash("sha256").update(codeVerifier).digest().toString("base64url")
-        } else {
-          // 'plain' method
-          expectedChallenge = codeVerifier
-        }
-
-        if (expectedChallenge !== codeData.codeChallenge) {
-          res.status(400).json({
-            error: "invalid_grant",
-            error_description: "Invalid code_verifier",
-          })
-          return
-        }
-      }
-
-      // Remove used code
-      authorizationCodes.delete(code!)
-
-      // Generate JWT access token
+      // Generate new JWT access token
       const accessTokenPayload = {
-        sub: codeData.userId,
-        email: options.oauth?.email || "",
+        sub: tokenData.userId,
+        email: tokenData.email || "",
         scope: "read write",
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + JWT_EXPIRES_IN,
@@ -804,109 +742,191 @@ function setupOAuthEndpoints(server: FastMCP, options: FastMCPServerOptions): vo
         aud: options.oauth?.resource || `${options.oauth?.issuer || `http://localhost:${options.port || 3000}`}/mcp`,
       }
 
-      // Generate refresh token
-      const refreshToken = randomBytes(32).toString("hex")
-      refreshTokens.set(refreshToken, {
+      // Generate new refresh token
+      const newRefreshToken = randomBytes(32).toString("hex")
+      refreshTokens.set(newRefreshToken, {
         createdAt: Date.now(),
-        userId: codeData.userId,
-        email: options.oauth?.email,
+        userId: tokenData.userId,
+        email: tokenData.email,
       })
 
       const accessToken = jwt.sign(accessTokenPayload, JWT_SECRET)
 
-      res.json({
+      return c.json({
         access_token: accessToken,
         token_type: "Bearer",
         expires_in: JWT_EXPIRES_IN,
         scope: "read write",
-        refresh_token: refreshToken,
+        refresh_token: newRefreshToken,
       })
-    },
-    { public: true },
-  )
+    }
+
+    if (grantType !== "authorization_code") {
+      return c.json(
+        {
+          error: "unsupported_grant_type",
+          error_description: "Only 'authorization_code' and 'refresh_token' grant types are supported",
+        },
+        400,
+      )
+    }
+
+    const codeData = authorizationCodes.get(code || "")
+    if (!codeData) {
+      return c.json(
+        {
+          error: "invalid_grant",
+          error_description: "Invalid or expired authorization code",
+        },
+        400,
+      )
+    }
+
+    // Validate redirect_uri matches
+    if (codeData.redirectUri && codeData.redirectUri !== redirectUri) {
+      return c.json(
+        {
+          error: "invalid_grant",
+          error_description: "redirect_uri mismatch",
+        },
+        400,
+      )
+    }
+
+    // Validate PKCE if code_challenge was provided
+    if (codeData.codeChallenge) {
+      if (!codeVerifier) {
+        return c.json(
+          {
+            error: "invalid_grant",
+            error_description: "code_verifier is required when code_challenge was used",
+          },
+          400,
+        )
+      }
+
+      let expectedChallenge: string
+      if (codeData.codeChallengeMethod === "S256") {
+        expectedChallenge = createHash("sha256").update(codeVerifier).digest().toString("base64url")
+      } else {
+        // 'plain' method
+        expectedChallenge = codeVerifier
+      }
+
+      if (expectedChallenge !== codeData.codeChallenge) {
+        return c.json(
+          {
+            error: "invalid_grant",
+            error_description: "Invalid code_verifier",
+          },
+          400,
+        )
+      }
+    }
+
+    // Remove used code
+    authorizationCodes.delete(code!)
+
+    // Generate JWT access token
+    const accessTokenPayload = {
+      sub: codeData.userId,
+      email: options.oauth?.email || "",
+      scope: "read write",
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + JWT_EXPIRES_IN,
+      iss: options.oauth?.issuer || `http://localhost:${options.port || 3000}`,
+      aud: options.oauth?.resource || `${options.oauth?.issuer || `http://localhost:${options.port || 3000}`}/mcp`,
+    }
+
+    // Generate refresh token
+    const refreshToken = randomBytes(32).toString("hex")
+    refreshTokens.set(refreshToken, {
+      createdAt: Date.now(),
+      userId: codeData.userId,
+      email: options.oauth?.email,
+    })
+
+    const accessToken = jwt.sign(accessTokenPayload, JWT_SECRET)
+
+    return c.json({
+      access_token: accessToken,
+      token_type: "Bearer",
+      expires_in: JWT_EXPIRES_IN,
+      scope: "read write",
+      refresh_token: refreshToken,
+    })
+  })
 
   // JWKS Endpoint
-  server.addRoute(
-    "GET",
-    "/oauth/jwks",
-    (_req, res) => {
-      res.json({
-        keys: [
-          {
-            kty: "oct", // Octet sequence for symmetric keys
-            use: "sig",
-            kid: "duckpond-hmac-key",
-            alg: "HS256",
-          },
-        ],
-      })
-    },
-    { public: true },
-  )
+  app.get("/oauth/jwks", (c) => {
+    return c.json({
+      keys: [
+        {
+          kty: "oct", // Octet sequence for symmetric keys
+          use: "sig",
+          kid: "duckpond-hmac-key",
+          alg: "HS256",
+        },
+      ],
+    })
+  })
 
   // Dynamic Client Registration
-  server.addRoute(
-    "POST",
-    "/oauth/register",
-    async (req, res) => {
+  app.post("/oauth/register", async (c) => {
+    try {
+      let registrationRequest: OAuthClientRegistrationRequest = {}
+
       try {
-        let registrationRequest: OAuthClientRegistrationRequest = {}
-
-        try {
-          if (req.body && typeof req.body === "object") {
-            registrationRequest = req.body as OAuthClientRegistrationRequest
-          } else {
-            const body = await req.text()
-            if (body && body !== "[object Object]") {
-              try {
-                registrationRequest = JSON.parse(body) as OAuthClientRegistrationRequest
-              } catch {
-                const formData = Object.fromEntries(new URLSearchParams(body))
-                registrationRequest = formData as OAuthClientRegistrationRequest
-              }
-            }
+        const body = await c.req.text()
+        if (body && body !== "[object Object]") {
+          try {
+            registrationRequest = JSON.parse(body) as OAuthClientRegistrationRequest
+          } catch {
+            const formData = Object.fromEntries(new URLSearchParams(body))
+            registrationRequest = formData as OAuthClientRegistrationRequest
           }
-        } catch (parseError) {
-          log("Error parsing request body:", parseError)
         }
+      } catch (parseError) {
+        log("Error parsing request body:", parseError)
+      }
 
-        const clientId = `client-${randomBytes(8).toString("hex")}`
-        const clientSecret = randomBytes(16).toString("hex")
+      const clientId = `client-${randomBytes(8).toString("hex")}`
+      const clientSecret = randomBytes(16).toString("hex")
 
-        const response: OAuthClientRegistrationResponse = {
-          client_id: clientId,
-          client_secret: clientSecret,
-          client_id_issued_at: Math.floor(Date.now() / 1000),
-          client_secret_expires_at: 0, // Never expires
-          grant_types: registrationRequest.grant_types || ["authorization_code"],
-          response_types: registrationRequest.response_types || ["code"],
-          redirect_uris: registrationRequest.redirect_uris || [],
-          token_endpoint_auth_method: registrationRequest.token_endpoint_auth_method || "client_secret_post",
-        }
+      const response: OAuthClientRegistrationResponse = {
+        client_id: clientId,
+        client_secret: clientSecret,
+        client_id_issued_at: Math.floor(Date.now() / 1000),
+        client_secret_expires_at: 0, // Never expires
+        grant_types: registrationRequest.grant_types || ["authorization_code"],
+        response_types: registrationRequest.response_types || ["code"],
+        redirect_uris: registrationRequest.redirect_uris || [],
+        token_endpoint_auth_method: registrationRequest.token_endpoint_auth_method || "client_secret_post",
+      }
 
-        if (registrationRequest.client_name) {
-          response.client_name = registrationRequest.client_name
-        }
-        if (registrationRequest.scope) {
-          response.scope = registrationRequest.scope
-        }
+      if (registrationRequest.client_name) {
+        response.client_name = registrationRequest.client_name
+      }
+      if (registrationRequest.scope) {
+        response.scope = registrationRequest.scope
+      }
 
-        res.status(201).json(response)
-      } catch (error) {
-        res.status(400).json({
+      return c.json(response, 201)
+    } catch (error) {
+      return c.json(
+        {
           error: "invalid_client_metadata",
           error_description:
             "Invalid client registration request: " + (error instanceof Error ? error.message : String(error)),
-        })
-      }
-    },
-    { public: true },
-  )
+        },
+        400,
+      )
+    }
+  })
 
   log("✓ OAuth flow endpoints added")
 }
-
-export async function startFastMCPServer(options: FastMCPServerOptions): Promise<void> {
+export async function startServer(options: FastMCPServerOptions, transport: "stdio" | "http"): Promise<void> {
   const { server, duckpond } = createFastMCPServer(options)
 
   // Initialize DuckPond
@@ -917,17 +937,23 @@ export async function startFastMCPServer(options: FastMCPServerOptions): Promise
 
   log("DuckPond initialized successfully")
 
-  // Start the server with HTTP streaming transport
-  await server.start({
-    transportType: "httpStream",
-    httpStream: {
-      port: options.port || 3000,
-      endpoint: (options.endpoint || "/mcp") as `/${string}`,
-    },
-  })
-
-  log(`✓ FastMCP server running on http://0.0.0.0:${options.port || 3000}${options.endpoint || "/mcp"}`)
-  log("🔌 Connect with StreamableHTTPClientTransport")
+  // Start the server with appropriate transport
+  if (transport === "stdio") {
+    await server.start({
+      transportType: "stdio",
+    })
+    log("✓ FastMCP server running with stdio transport")
+  } else {
+    await server.start({
+      transportType: "httpStream",
+      httpStream: {
+        port: options.port || 3000,
+        endpoint: (options.endpoint || "/mcp") as `/${string}`,
+      },
+    })
+    log(`✓ FastMCP server running on http://0.0.0.0:${options.port || 3000}${options.endpoint || "/mcp"}`)
+    log("🔌 Connect with StreamableHTTPClientTransport")
+  }
 
   // Handle cleanup on exit
   process.on("SIGINT", async () => {

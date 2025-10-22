@@ -1,5 +1,5 @@
 import type { Either } from "duckpond"
-import { DuckPond, type DuckPondConfig, type ErrorCode, type UserStats } from "duckpond"
+import { DuckPond, type DuckPondConfig, type ErrorCode, type ListUsersResult, type UserStats } from "duckpond"
 
 import { loggers } from "./utils/logger"
 
@@ -143,6 +143,28 @@ export class DuckPondServer {
     const result = await this.pond.detachUser(userId)
 
     return this.handleEither(result, Date.now() - startTime)
+  }
+
+  /**
+   * List all currently cached users
+   */
+  listUsers(): MCPResult<{ users: string[]; count: number; maxActiveUsers: number; utilizationPercent: number }> {
+    if (!this.pond) {
+      return this.notInitializedError()
+    }
+
+    log("Listing cached users")
+    const result = this.pond.listUsers()
+
+    return {
+      success: true,
+      data: {
+        users: result.users.toArray(), // Convert List<string> to string[]
+        count: result.count,
+        maxActiveUsers: result.maxActiveUsers,
+        utilizationPercent: result.utilizationPercent,
+      },
+    }
   }
 
   /**
