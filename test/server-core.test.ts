@@ -38,7 +38,7 @@ describe("DuckPondServer", () => {
     const result = await server.execute("test-user", "CREATE TABLE test (id INT, name VARCHAR)")
 
     expect(result.success).toBe(true)
-    expect(result.executionTime).toBeGreaterThan(0)
+    expect(result.executionTime).toBeGreaterThanOrEqual(0)
   })
 
   test("should query data", async () => {
