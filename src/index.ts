@@ -27,6 +27,8 @@ function getConfigFromEnv(): DuckPondServerConfig {
     evictionTimeout: parseInt(process.env.DUCKPOND_EVICTION_TIMEOUT || "300000"),
     cacheType: (process.env.DUCKPOND_CACHE_TYPE as "disk" | "memory" | "noop") || "disk",
     strategy: (process.env.DUCKPOND_STRATEGY as "parquet" | "duckdb" | "hybrid") || "parquet",
+    tempDir: process.env.DUCKPOND_TEMP_DIR,
+    cacheDir: process.env.DUCKPOND_CACHE_DIR,
   }
 
   // R2 configuration
@@ -77,6 +79,9 @@ program
         threads: config.threads,
         maxActiveUsers: config.maxActiveUsers,
         strategy: config.strategy,
+        tempDir: config.tempDir,
+        cacheDir: config.cacheDir,
+        cacheType: config.cacheType,
         hasR2: !!config.r2,
         hasS3: !!config.s3,
       })

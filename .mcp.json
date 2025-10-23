@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "duckpond": {
+      "command": "npx",
+      "args": ["-y", "duckpond-mcp-server"]
+    }
+  }
+}
