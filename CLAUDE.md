@@ -2,6 +2,36 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Memory System Initialization
+
+**IMPORTANT**: At the start of each conversation, load the memory system to recall context:
+
+```sql
+-- 1. Check available queries
+SELECT name, description FROM memory_queries;
+
+-- 2. Load active memories (high fitness, not archived)
+SELECT type, category, key, value, fitness_score FROM active_memories;
+
+-- 3. Check memory relations
+SELECT * FROM memory_graph;
+```
+
+### Memory Operations Quick Reference
+
+| Action | Query |
+|--------|-------|
+| Search memories | `SELECT * FROM active_memories WHERE key ILIKE '%keyword%' OR value ILIKE '%keyword%'` |
+| Store new memory | Use `store_memory` template from `memory_queries` |
+| Reinforce useful memory | `UPDATE memories SET reinforcement_count = reinforcement_count + 1, fitness_score = LEAST(1.0, fitness_score + 0.1) WHERE id = 'mem_xxx'` |
+| Deprecate outdated | `UPDATE memories SET fitness_score = fitness_score * 0.5 WHERE id = 'mem_xxx'` |
+
+### Memory Schema
+- `memories` - Core storage with fitness tracking
+- `memory_relations` - Links between memories
+- `memory_access_log` - Audit trail
+- `memory_queries` - SQL templates for operations
+
 ## Project Overview
 
 This is an MCP (Model Context Protocol) server that exposes DuckPond's multi-tenant DuckDB capabilities to AI agents. The server enables agents to manage per-user databases, execute SQL queries, and leverage R2/S3 cloud storage through a standardized MCP interface.
