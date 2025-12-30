@@ -2,7 +2,10 @@
   "mcpServers": {
     "duckpond": {
       "command": "npx",
-      "args": ["-y", "duckpond-mcp-server"]
+      "args": ["-y", "duckpond-mcp-server"],
+      "env": {
+        "DUCKPOND_DEFAULT_USER": "claude"
+      }
     }
   }
 }

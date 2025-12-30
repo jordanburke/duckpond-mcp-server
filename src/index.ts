@@ -11,6 +11,7 @@ import { Command } from "commander"
 import { createRequire } from "module"
 
 import type { OAuthConfig } from "./server"
+import { getDefaultUserId } from "./tools"
 
 const require = createRequire(import.meta.url)
 const packageJson = require("../package.json") as { version: string }
@@ -77,6 +78,7 @@ program
     try {
       const config = getConfigFromEnv()
 
+      const defaultUser = getDefaultUserId()
       log(`Starting DuckPond MCP Server with ${options.transport} transport`)
       log("Configuration:", {
         memoryLimit: config.memoryLimit,
@@ -88,7 +90,12 @@ program
         cacheType: config.cacheType,
         hasR2: !!config.r2,
         hasS3: !!config.s3,
+        defaultUser: defaultUser || "(not set)",
       })
+
+      if (defaultUser) {
+        console.error(`👤 Default user: ${defaultUser}`)
+      }
 
       // Load OAuth configuration from environment variables (for HTTP transport)
       let oauthConfig: OAuthConfig | undefined

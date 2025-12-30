@@ -19,10 +19,12 @@ import { DuckPondServer, type DuckPondServerConfig } from "./server-core"
 import {
   detachUserSchema,
   executeSchema,
+  getDefaultUserId,
   getUserStatsSchema,
   isAttachedSchema,
   listUsersSchema,
   querySchema,
+  resolveUserId,
 } from "./tools"
 import { loggers } from "./utils/logger"
 
@@ -328,7 +330,8 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
     parameters: querySchema,
     execute: async (args) => {
       try {
-        const result = await duckpond.query(args.userId, args.sql)
+        const userId = resolveUserId(args.userId)
+        const result = await duckpond.query(userId, args.sql)
 
         if (!result.success) {
           return `ERROR: ${result.error.message}`
@@ -358,7 +361,8 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
     parameters: executeSchema,
     execute: async (args) => {
       try {
-        const result = await duckpond.execute(args.userId, args.sql)
+        const userId = resolveUserId(args.userId)
+        const result = await duckpond.execute(userId, args.sql)
 
         if (!result.success) {
           return `ERROR: ${result.error.message}`
@@ -388,7 +392,8 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
     parameters: getUserStatsSchema,
     execute: async (args) => {
       try {
-        const result = await duckpond.getUserStats(args.userId)
+        const userId = resolveUserId(args.userId)
+        const result = await duckpond.getUserStats(userId)
 
         if (!result.success) {
           return `ERROR: ${result.error.message}`
@@ -417,7 +422,8 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
     parameters: isAttachedSchema,
     execute: async (args) => {
       try {
-        const result = duckpond.isAttached(args.userId)
+        const userId = resolveUserId(args.userId)
+        const result = duckpond.isAttached(userId)
 
         if (!result.success) {
           return `ERROR: ${result.error.message}`
@@ -426,7 +432,7 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
         return JSON.stringify(
           {
             attached: result.data,
-            userId: args.userId,
+            userId,
           },
           null,
           2,
@@ -446,7 +452,8 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
     parameters: detachUserSchema,
     execute: async (args) => {
       try {
-        const result = await duckpond.detachUser(args.userId)
+        const userId = resolveUserId(args.userId)
+        const result = await duckpond.detachUser(userId)
 
         if (!result.success) {
           return `ERROR: ${result.error.message}`
@@ -455,7 +462,7 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
         return JSON.stringify(
           {
             success: true,
-            message: `User ${args.userId} detached successfully`,
+            message: `User ${userId} detached successfully`,
           },
           null,
           2,
