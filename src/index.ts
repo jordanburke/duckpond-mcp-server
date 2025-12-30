@@ -8,8 +8,12 @@ if (!globalThis.crypto) {
 }
 
 import { Command } from "commander"
+import { createRequire } from "module"
 
 import type { OAuthConfig } from "./server"
+
+const require = createRequire(import.meta.url)
+const packageJson = require("../package.json") as { version: string }
 import { startServer } from "./server"
 import type { DuckPondServerConfig } from "./server-core"
 import { loggers } from "./utils/logger"
@@ -66,7 +70,7 @@ const program = new Command()
 program
   .name("duckpond-mcp-server")
   .description("MCP server for multi-tenant DuckDB management with R2/S3 storage")
-  .version("0.1.0")
+  .version(packageJson.version)
   .option("-t, --transport <type>", "Transport mode: stdio or http", "stdio")
   .option("-p, --port <port>", "HTTP port (when using http transport)", "3000")
   .action(async (options) => {

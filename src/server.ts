@@ -7,6 +7,10 @@ if (!globalThis.crypto) {
 
 import { FastMCP } from "@jordanburke/fastmcp"
 import { createHash, randomBytes } from "crypto"
+import { createRequire } from "module"
+
+const require = createRequire(import.meta.url)
+const packageJson = require("../package.json") as { version: string }
 import * as jwt from "jsonwebtoken"
 import { URL } from "url"
 import { z } from "zod"
@@ -118,7 +122,7 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
   // Build server configuration
   const baseConfig = {
     name: "duckpond",
-    version: "0.1.0" as const,
+    version: packageJson.version as `${number}.${number}.${number}`,
     health: {
       enabled: true,
       path: "/health",
@@ -126,7 +130,7 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
       message: JSON.stringify({
         status: "healthy",
         service: "duckpond-mcp-server",
-        version: "0.1.0",
+        version: packageJson.version,
         timestamp: new Date().toISOString(),
       }),
     },
@@ -498,7 +502,7 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
 
     const serverInfo = {
       name: "DuckPond MCP Server",
-      version: "0.1.0",
+      version: packageJson.version,
       description: "Model Context Protocol server for multi-tenant DuckDB with R2/S3 storage",
       service: "duckpond-mcp-server",
       capabilities: {
