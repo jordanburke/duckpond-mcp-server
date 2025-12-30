@@ -14,6 +14,7 @@ Built on top of the [duckpond](https://github.com/jordanburke/duckpond) library,
 - 🔌 **Dual Transport** - stdio (Claude Desktop) and HTTP (server deployments)
 - 🔐 **Authentication** - OAuth 2.0 and Basic Auth support for HTTP
 - 🎯 **MCP Tools** - Query, execute, stats, cache management
+- 🖥️ **DuckDB UI** - Built-in web UI for database inspection and debugging
 - 📊 **Type Safe** - Full TypeScript with functype error handling
 
 ## Quick Start
@@ -267,6 +268,92 @@ npx duckpond-mcp-server --transport http
 - `POST /oauth/token` - Token endpoint
 - `GET /oauth/jwks` - JSON Web Key Set
 - `POST /oauth/register` - Client registration
+
+### DuckDB UI
+
+- `GET /ui` - UI status and available users
+- `GET /ui/:userId` - Start UI for specific user
+- `GET /ui/*` - Proxy to DuckDB UI server
+
+## DuckDB UI
+
+The MCP server includes built-in support for [DuckDB UI](https://duckdb.org/docs/stable/core_extensions/ui.html), allowing you to visually inspect and debug any user's database through a web browser.
+
+### HTTP Mode (default)
+
+When running in HTTP mode, the UI is automatically available:
+
+```bash
+# Start server
+npx duckpond-mcp-server --transport http --port 3000
+
+# Open UI for user "claude"
+# Browser: http://localhost:3000/ui/claude
+```
+
+### stdio Mode
+
+For stdio mode (Claude Desktop), enable the UI server with the `--ui` flag:
+
+```bash
+# Start with UI enabled
+npx duckpond-mcp-server --transport stdio --ui --ui-port 4000
+
+# MCP communicates via stdin/stdout
+# UI available at: http://localhost:4000/ui/claude
+```
+
+### Claude Desktop with UI
+
+Add UI support to your Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "duckpond": {
+      "command": "npx",
+      "args": ["-y", "duckpond-mcp-server", "--ui", "--ui-port", "4000"],
+      "env": {
+        "DUCKPOND_DEFAULT_USER": "claude"
+      }
+    }
+  }
+}
+```
+
+Then browse to `http://localhost:4000/ui/claude` to inspect the database.
+
+### Docker
+
+```bash
+# Run with port mapping
+docker run -p 3000:3000 duckpond-mcp-server
+
+# Access UI
+# Browser: http://localhost:3000/ui/claude
+```
+
+### UI Features
+
+- **Database Explorer** - Browse schemas, tables, and columns
+- **SQL Notebooks** - Execute queries with syntax highlighting
+- **Table Summaries** - Row counts, data profiles, previews
+- **Column Explorer** - Detailed column statistics and insights
+
+### Switching Users
+
+Navigate to `/ui/:differentUserId` to switch between users. Only one user's UI is active at a time - switching automatically stops the previous UI and starts for the new user.
+
+### Environment Variables
+
+- `DUCKPOND_UI_ENABLED` - Enable UI in stdio mode (default: `false`)
+- `DUCKPOND_UI_PORT` - UI server port for stdio mode (default: `4000`)
+
+### CLI Flags
+
+- `--ui` - Enable UI server in stdio mode
+- `--ui-port <port>` - UI server port (default: `4000`)
+- `--ui-internal-port <port>` - Internal DuckDB UI port (default: `4213`)
 
 ## Development
 

@@ -17,6 +17,7 @@ const require = createRequire(import.meta.url)
 const packageJson = require("../package.json") as { version: string }
 import { startServer } from "./server"
 import type { DuckPondServerConfig } from "./server-core"
+import { startUIServer } from "./ui-server"
 import { loggers } from "./utils/logger"
 
 const log = loggers.main
@@ -74,6 +75,9 @@ program
   .version(packageJson.version)
   .option("-t, --transport <type>", "Transport mode: stdio or http", "stdio")
   .option("-p, --port <port>", "HTTP port (when using http transport)", "3000")
+  .option("--ui", "Enable DuckDB UI server (for stdio mode)")
+  .option("--ui-port <port>", "UI server port (default: 4000)", "4000")
+  .option("--ui-internal-port <port>", "Internal DuckDB UI port (default: 4213)", "4213")
   .action(async (options) => {
     try {
       const config = getConfigFromEnv()
@@ -139,6 +143,15 @@ program
         console.error(`   User ID: ${basicAuthConfig.userId || basicAuthConfig.username}`)
       }
 
+      // Parse UI options
+      const uiEnabled = options.ui || process.env.DUCKPOND_UI_ENABLED === "true"
+      const uiPort = parseInt(options.uiPort) || 4000
+      const uiInternalPort = parseInt(options.uiInternalPort) || 4213
+
+      if (uiEnabled && options.transport === "stdio") {
+        console.error(`🖥️  UI server will be available at http://localhost:${uiPort}/ui`)
+      }
+
       // Start unified FastMCP server with appropriate transport
       if (options.transport === "stdio" || options.transport === "http") {
         await startServer(
@@ -148,6 +161,13 @@ program
             endpoint: "/mcp",
             oauth: oauthConfig,
             basicAuth: basicAuthConfig,
+            ui: uiEnabled
+              ? {
+                  enabled: true,
+                  port: uiPort,
+                  internalPort: uiInternalPort,
+                }
+              : undefined,
           },
           options.transport === "stdio" ? "stdio" : "http",
         )

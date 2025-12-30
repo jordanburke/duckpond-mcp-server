@@ -26,6 +26,7 @@ import {
   querySchema,
   resolveUserId,
 } from "./tools"
+import { startUIServer } from "./ui-server"
 import { loggers } from "./utils/logger"
 
 const log = loggers.fastmcp
@@ -50,6 +51,11 @@ export type FastMCPServerOptions = {
     password: string
     userId?: string
     email?: string
+  }
+  ui?: {
+    enabled: boolean
+    port: number
+    internalPort?: number
   }
 }
 
@@ -523,6 +529,7 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
       endpoints: {
         mcp: `${baseUrl}${options.endpoint || "/mcp"}`,
         health: `${baseUrl}/health`,
+        ui: `${baseUrl}/ui/:userId`,
         ...(options.oauth?.enabled && {
           oauth: {
             authorization: `${baseUrl}/oauth/authorize`,
@@ -537,6 +544,9 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
 
     return c.json(serverInfo)
   })
+
+  // Add UI endpoints for DuckDB UI access
+  setupUIEndpoints(app, duckpond, options)
 
   log("✓ FastMCP server created")
 
@@ -937,6 +947,124 @@ function setupOAuthEndpoints(server: FastMCP, options: FastMCPServerOptions): vo
 
   log("✓ OAuth flow endpoints added")
 }
+
+function setupUIEndpoints(
+  app: ReturnType<FastMCP["getApp"]>,
+  duckpond: DuckPondServer,
+  options: FastMCPServerOptions,
+): void {
+  const baseUrl = options.oauth?.issuer || `http://localhost:${options.port || 3000}`
+  const uiInternalPort = duckpond.getUIPort()
+
+  // GET /ui - Info endpoint when no UI running, or redirect to UI
+  app.get("/ui", (c) => {
+    const currentUser = duckpond.getCurrentUIUser()
+    if (!currentUser) {
+      const listResult = duckpond.listUsers()
+      return c.json({
+        message: "No UI active. Visit /ui/:userId to start DuckDB UI for a user.",
+        currentUser: null,
+        availableUsers: listResult.success ? listResult.data.users : [],
+        endpoints: {
+          startUI: `${baseUrl}/ui/:userId`,
+        },
+      })
+    }
+    // Redirect to the UI root
+    return c.redirect("/ui/")
+  })
+
+  // GET /ui/:userId - Start UI for a specific user and redirect
+  app.get("/ui/:userId", async (c) => {
+    const userId = c.req.param("userId")
+
+    log(`Starting UI for user: ${userId}`)
+    const result = await duckpond.startUI(userId)
+
+    if (!result.success) {
+      return c.json(
+        {
+          error: "Failed to start UI",
+          message: result.error.message,
+          details: result.error.details,
+        },
+        500,
+      )
+    }
+
+    // Redirect to the UI
+    return c.redirect("/ui/")
+  })
+
+  // ALL /ui/* - Proxy requests to DuckDB UI server
+  app.all("/ui/*", async (c) => {
+    const currentUser = duckpond.getCurrentUIUser()
+    if (!currentUser) {
+      return c.json(
+        {
+          error: "No UI active",
+          message: "Start UI by visiting /ui/:userId first",
+        },
+        400,
+      )
+    }
+
+    // Get the path after /ui
+    const path = c.req.path.replace(/^\/ui/, "") || "/"
+
+    try {
+      // Build the proxy URL
+      const proxyUrl = `http://localhost:${uiInternalPort}${path}`
+      const url = new URL(c.req.url)
+      if (url.search) {
+        // Append query string if present
+      }
+
+      // Prepare headers, filtering out host
+      const headers = new Headers()
+      c.req.raw.headers.forEach((value, key) => {
+        if (key.toLowerCase() !== "host") {
+          headers.set(key, value)
+        }
+      })
+
+      // Make the proxy request
+      const response = await fetch(proxyUrl + url.search, {
+        method: c.req.method,
+        headers,
+        body: ["GET", "HEAD"].includes(c.req.method) ? undefined : await c.req.arrayBuffer(),
+      })
+
+      // Return the proxied response
+      const responseHeaders = new Headers()
+      response.headers.forEach((value, key) => {
+        // Don't forward certain headers
+        if (!["transfer-encoding", "connection"].includes(key.toLowerCase())) {
+          responseHeaders.set(key, value)
+        }
+      })
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      })
+    } catch (error) {
+      log(`UI proxy error: ${error instanceof Error ? error.message : String(error)}`)
+      return c.json(
+        {
+          error: "UI proxy error",
+          message: error instanceof Error ? error.message : "Failed to connect to DuckDB UI",
+          hint: "The DuckDB UI server may not be running. Try visiting /ui/:userId to restart it.",
+        },
+        502,
+      )
+    }
+  })
+
+  log("✓ UI endpoints added")
+}
+
 export async function startServer(options: FastMCPServerOptions, transport: "stdio" | "http"): Promise<void> {
   const { server, duckpond } = createFastMCPServer(options)
 
@@ -948,12 +1076,25 @@ export async function startServer(options: FastMCPServerOptions, transport: "std
 
   log("DuckPond initialized successfully")
 
+  // Set UI internal port if configured
+  if (options.ui?.internalPort) {
+    duckpond.setUIPort(options.ui.internalPort)
+  }
+
   // Start the server with appropriate transport
   if (transport === "stdio") {
     await server.start({
       transportType: "stdio",
     })
     log("✓ FastMCP server running with stdio transport")
+
+    // Start UI server if enabled in stdio mode
+    if (options.ui?.enabled) {
+      await startUIServer({
+        port: options.ui.port,
+        duckpond,
+      })
+    }
   } else {
     await server.start({
       transportType: "httpStream",

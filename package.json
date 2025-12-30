@@ -1,6 +1,6 @@
 {
   "name": "duckpond-mcp-server",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "MCP server for multi-tenant DuckDB management with R2/S3 storage",
   "keywords": [
     "mcp",
@@ -44,6 +44,7 @@
     "ts-types": "tsc"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.7",
     "@jordanburke/fastmcp": "3.26.700",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
@@ -51,6 +52,7 @@
     "debug": "^4.4.3",
     "duckpond": "^0.2.1",
     "express": "^5.2.1",
+    "hono": "^4.11.3",
     "jsonwebtoken": "^9.0.3",
     "zod": "^3.25.76"
   },

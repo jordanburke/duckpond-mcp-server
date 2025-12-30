@@ -41,6 +41,8 @@ export type DuckPondServerConfig = DuckPondConfig
 export class DuckPondServer {
   private pond: DuckPond | null = null
   private initialized = false
+  private currentUIUserId: string | null = null
+  private uiInternalPort: number = 4213
 
   constructor(private config: DuckPondServerConfig) {
     log("DuckPondServer created")
@@ -178,11 +180,130 @@ export class DuckPondServer {
     log("Closing DuckPond...")
     const startTime = Date.now()
 
+    // Stop UI server if running
+    if (this.currentUIUserId) {
+      await this.stopUI()
+    }
+
     const result = await this.pond.close()
     this.initialized = false
     this.pond = null
 
     return this.handleEither(result, Date.now() - startTime)
+  }
+
+  /**
+   * Start DuckDB UI for a specific user
+   * Only one user's UI can be active at a time
+   */
+  async startUI(userId: string): Promise<MCPResult<{ port: number }>> {
+    if (!this.pond) {
+      return this.notInitializedError()
+    }
+
+    log(`Starting UI for user ${userId}`)
+    const startTime = Date.now()
+
+    // Stop existing UI if different user
+    if (this.currentUIUserId && this.currentUIUserId !== userId) {
+      log(`Stopping UI for previous user ${this.currentUIUserId}`)
+      await this.stopUI()
+    }
+
+    // If already running for this user, just return success
+    if (this.currentUIUserId === userId) {
+      log(`UI already running for user ${userId}`)
+      return {
+        success: true,
+        data: { port: this.uiInternalPort },
+        executionTime: Date.now() - startTime,
+      }
+    }
+
+    // Install and load UI extension
+    const installResult = await this.execute(userId, "INSTALL ui; LOAD ui;")
+    if (!installResult.success) {
+      log(`Failed to install UI extension: ${installResult.error.message}`)
+      return installResult as MCPResult<{ port: number }>
+    }
+
+    // Set the UI port
+    const portResult = await this.execute(userId, `SET ui_local_port = ${this.uiInternalPort}`)
+    if (!portResult.success) {
+      log(`Failed to set UI port: ${portResult.error.message}`)
+      return portResult as MCPResult<{ port: number }>
+    }
+
+    // Start the UI server (without opening browser)
+    const startResult = await this.execute(userId, "CALL start_ui_server()")
+    if (!startResult.success) {
+      log(`Failed to start UI server: ${startResult.error.message}`)
+      return startResult as MCPResult<{ port: number }>
+    }
+
+    this.currentUIUserId = userId
+    log(`UI started for user ${userId} on port ${this.uiInternalPort}`)
+
+    return {
+      success: true,
+      data: { port: this.uiInternalPort },
+      executionTime: Date.now() - startTime,
+    }
+  }
+
+  /**
+   * Stop the currently running DuckDB UI
+   */
+  async stopUI(): Promise<MCPResult<void>> {
+    if (!this.currentUIUserId) {
+      log("No UI running to stop")
+      return { success: true, data: undefined }
+    }
+
+    if (!this.pond) {
+      this.currentUIUserId = null
+      return { success: true, data: undefined }
+    }
+
+    log(`Stopping UI for user ${this.currentUIUserId}`)
+    const startTime = Date.now()
+
+    const result = await this.execute(this.currentUIUserId, "CALL stop_ui_server()")
+    const previousUser = this.currentUIUserId
+    this.currentUIUserId = null
+
+    if (result.success) {
+      log(`UI stopped for user ${previousUser}`)
+      return {
+        success: true,
+        data: undefined,
+        executionTime: Date.now() - startTime,
+      }
+    }
+
+    log(`Failed to stop UI: ${result.error.message}`)
+    return result
+  }
+
+  /**
+   * Get the user ID for the currently running UI
+   */
+  getCurrentUIUser(): string | null {
+    return this.currentUIUserId
+  }
+
+  /**
+   * Set the internal port for DuckDB UI
+   */
+  setUIPort(port: number): void {
+    this.uiInternalPort = port
+  }
+
+  /**
+   * Get the internal port for DuckDB UI
+   */
+  getUIPort(): number {
+    return this.uiInternalPort
   }
 
   /**

@@ -19,14 +19,15 @@ SELECT * FROM memory_graph;
 
 ### Memory Operations Quick Reference
 
-| Action | Query |
-|--------|-------|
-| Search memories | `SELECT * FROM active_memories WHERE key ILIKE '%keyword%' OR value ILIKE '%keyword%'` |
-| Store new memory | Use `store_memory` template from `memory_queries` |
+| Action                  | Query                                                                                                                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Search memories         | `SELECT * FROM active_memories WHERE key ILIKE '%keyword%' OR value ILIKE '%keyword%'`                                                    |
+| Store new memory        | Use `store_memory` template from `memory_queries`                                                                                         |
 | Reinforce useful memory | `UPDATE memories SET reinforcement_count = reinforcement_count + 1, fitness_score = LEAST(1.0, fitness_score + 0.1) WHERE id = 'mem_xxx'` |
-| Deprecate outdated | `UPDATE memories SET fitness_score = fitness_score * 0.5 WHERE id = 'mem_xxx'` |
+| Deprecate outdated      | `UPDATE memories SET fitness_score = fitness_score * 0.5 WHERE id = 'mem_xxx'`                                                            |
 
 ### Memory Schema
+
 - `memories` - Core storage with fitness tracking
 - `memory_relations` - Links between memories
 - `memory_access_log` - Audit trail
