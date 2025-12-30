@@ -1062,6 +1062,56 @@ function setupUIEndpoints(
     }
   })
 
+  // Fallback: Proxy unknown paths to DuckDB UI (for assets like JS/CSS)
+  // DuckDB UI uses <base href="/"> so assets are requested at root
+  // Only proxy if UI is active and path looks like a DuckDB UI asset
+  app.all("*", async (c) => {
+    const currentUser = duckpond.getCurrentUIUser()
+    if (!currentUser) {
+      return c.notFound()
+    }
+
+    const path = c.req.path
+
+    // Only proxy paths that look like DuckDB UI assets
+    if (!path.match(/\.(js|css|json|woff2?|ttf|svg|png|ico)$/) && !path.includes("hatchling")) {
+      return c.notFound()
+    }
+
+    try {
+      const proxyUrl = `http://localhost:${uiInternalPort}${path}`
+      const url = new URL(c.req.url)
+
+      const headers = new Headers()
+      c.req.raw.headers.forEach((value, key) => {
+        if (key.toLowerCase() !== "host") {
+          headers.set(key, value)
+        }
+      })
+
+      const response = await fetch(proxyUrl + url.search, {
+        method: c.req.method,
+        headers,
+        body: ["GET", "HEAD"].includes(c.req.method) ? undefined : await c.req.arrayBuffer(),
+      })
+
+      const responseHeaders = new Headers()
+      response.headers.forEach((value, key) => {
+        if (!["transfer-encoding", "connection"].includes(key.toLowerCase())) {
+          responseHeaders.set(key, value)
+        }
+      })
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      })
+    } catch {
+      return c.notFound()
+    }
+  })
+
   log("✓ UI endpoints added")
 }
 
