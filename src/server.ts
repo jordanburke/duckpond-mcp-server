@@ -330,6 +330,15 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
         })
       : new FastMCP(baseConfig)
 
+  // BigInt-safe JSON serializer
+  const bigIntReplacer = (_key: string, value: unknown): unknown => {
+    if (typeof value === "bigint") {
+      // Convert to number if safe, otherwise string
+      return Number.isSafeInteger(Number(value)) ? Number(value) : value.toString()
+    }
+    return value
+  }
+
   // Add query tool
   server.addTool({
     name: "query",
@@ -350,7 +359,7 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
             rowCount: result.data.length,
             executionTime: result.executionTime,
           },
-          null,
+          bigIntReplacer,
           2,
         )
       } catch (error) {
