@@ -325,14 +325,32 @@ npx duckpond-mcp-server --transport http
 
 ## DuckDB UI
 
-The MCP server includes built-in support for [DuckDB UI](https://duckdb.org/docs/stable/core_extensions/ui.html), allowing you to visually inspect and debug any user's database through a web browser.
+The MCP server includes built-in support for [DuckDB UI](https://duckdb.org/docs/stable/core_extensions/ui.html), allowing you to visually inspect and debug your database through a web browser.
 
 ### How It Works
 
-1. **Start the UI** for a user via the `/ui/:userId` endpoint
-2. **Access directly** at `http://localhost:4213` (the internal DuckDB UI port)
+With `DUCKPOND_DEFAULT_USER` set, the UI **auto-starts** when the server starts. Just open `http://localhost:4213` in your browser.
 
-The UI runs on a separate port (default: 4213) because DuckDB UI requires specific browser features (SharedArrayBuffer) that work best with direct access.
+The UI runs on port 4213 because DuckDB UI requires specific browser features (SharedArrayBuffer) that work best with direct access.
+
+### Claude Desktop Config (Recommended)
+
+```json
+{
+  "mcpServers": {
+    "duckpond": {
+      "command": "npx",
+      "args": ["-y", "duckpond-mcp-server", "--ui"],
+      "env": {
+        "DUCKPOND_DEFAULT_USER": "claude",
+        "DUCKPOND_DATA_DIR": "${HOME}/.duckpond/data"
+      }
+    }
+  }
+}
+```
+
+The UI automatically starts for the default user. Open `http://localhost:4213` in your browser.
 
 ### HTTP Mode
 
@@ -347,13 +365,13 @@ curl http://localhost:3000/ui/claude
 # Browser: http://localhost:4213
 ```
 
-### stdio Mode (Claude Desktop)
+### stdio Mode without Default User
 
-For stdio mode, enable the UI server with the `--ui` flag:
+If no `DUCKPOND_DEFAULT_USER` is set, a management server starts for manual user selection:
 
 ```bash
-# Start with UI enabled
-npx duckpond-mcp-server --transport stdio --ui --ui-port 4000
+# Start with UI management server
+npx duckpond-mcp-server --ui --ui-port 4000
 
 # Start UI for a user
 curl http://localhost:4000/ui/claude
@@ -361,24 +379,6 @@ curl http://localhost:4000/ui/claude
 # Access UI directly
 # Browser: http://localhost:4213
 ```
-
-### Claude Desktop Config
-
-```json
-{
-  "mcpServers": {
-    "duckpond": {
-      "command": "npx",
-      "args": ["-y", "duckpond-mcp-server", "--ui", "--ui-port", "4000"],
-      "env": {
-        "DUCKPOND_DEFAULT_USER": "claude"
-      }
-    }
-  }
-}
-```
-
-Then: `curl http://localhost:4000/ui/claude` and open `http://localhost:4213` in your browser.
 
 ### Docker
 
@@ -411,20 +411,20 @@ curl http://localhost:3000/ui/claude
 - **Table Summaries** - Row counts, data profiles, previews
 - **Column Explorer** - Detailed column statistics and insights
 
-### Switching Users
+### Switching Users (HTTP Mode)
 
-Navigate to `/ui/:differentUserId` to switch between users. Only one user's UI is active at a time - switching automatically stops the previous UI and starts for the new user.
+In HTTP mode, navigate to `/ui/:differentUserId` to switch between users. Only one user's UI is active at a time - switching automatically stops the previous UI and starts for the new user.
 
 ### Environment Variables
 
-- `DUCKPOND_UI_ENABLED` - Enable UI in stdio mode (default: `false`)
-- `DUCKPOND_UI_PORT` - UI server port for stdio mode (default: `4000`)
+- `DUCKPOND_DEFAULT_USER` - Default user ID; when set, UI auto-starts for this user
+- `DUCKPOND_UI_ENABLED` - Enable UI (default: `false`, or use `--ui` flag)
 
 ### CLI Flags
 
-- `--ui` - Enable UI server in stdio mode
-- `--ui-port <port>` - UI server port (default: `4000`)
-- `--ui-internal-port <port>` - Internal DuckDB UI port (default: `4213`)
+- `--ui` - Enable DuckDB UI (auto-starts for `DUCKPOND_DEFAULT_USER`)
+- `--ui-port <port>` - Management server port, only used when no default user (default: `4000`)
+- `--ui-internal-port <port>` - DuckDB UI port (default: `4213`)
 
 ## Development
 

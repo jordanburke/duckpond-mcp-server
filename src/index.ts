@@ -23,6 +23,17 @@ import { loggers } from "./utils/logger"
 const log = loggers.main
 
 /**
+ * Expand ~ to home directory in paths
+ */
+function expandTilde(path: string): string {
+  if (path.startsWith("~/")) {
+    const home = process.env.HOME || process.env.USERPROFILE || "."
+    return `${home}${path.slice(1)}`
+  }
+  return path
+}
+
+/**
  * Get the default data directory for persistent storage
  */
 function getDefaultDataDir(): string {
@@ -34,8 +45,8 @@ function getDefaultDataDir(): string {
  * Parse environment variables into DuckPond configuration
  */
 function getConfigFromEnv(): DuckPondServerConfig {
-  // Default to local disk storage
-  const dataDir = process.env.DUCKPOND_DATA_DIR || getDefaultDataDir()
+  // Default to local disk storage (expand ~ if present)
+  const dataDir = expandTilde(process.env.DUCKPOND_DATA_DIR || getDefaultDataDir())
 
   const config: DuckPondServerConfig = {
     memoryLimit: process.env.DUCKPOND_MEMORY_LIMIT || "4GB",
@@ -87,9 +98,9 @@ program
   .version(packageJson.version)
   .option("-t, --transport <type>", "Transport mode: stdio or http", "stdio")
   .option("-p, --port <port>", "HTTP port (when using http transport)", "3000")
-  .option("--ui", "Enable DuckDB UI server (for stdio mode)")
-  .option("--ui-port <port>", "UI server port (default: 4000)", "4000")
-  .option("--ui-internal-port <port>", "Internal DuckDB UI port (default: 4213)", "4213")
+  .option("--ui", "Enable DuckDB UI (auto-starts for DUCKPOND_DEFAULT_USER)")
+  .option("--ui-port <port>", "UI management server port, only used when no default user (default: 4000)", "4000")
+  .option("--ui-internal-port <port>", "DuckDB UI port (default: 4213)", "4213")
   .action(async (options) => {
     try {
       const config = getConfigFromEnv()
@@ -171,7 +182,14 @@ program
       const uiInternalPort = parseInt(options.uiInternalPort) || 4213
 
       if (uiEnabled && options.transport === "stdio") {
-        console.error(`🖥️  UI server will be available at http://localhost:${uiPort}/ui`)
+        if (defaultUser) {
+          // Will auto-start UI for default user - show where to access it
+          console.error(`🖥️  DuckDB UI will start at http://localhost:${uiInternalPort}`)
+        } else {
+          // No default user - management server needed
+          console.error(`🖥️  UI management server at http://localhost:${uiPort}/ui`)
+          console.error(`   Visit /ui/:userId to start DuckDB UI for a user`)
+        }
       }
 
       // Start unified FastMCP server with appropriate transport
@@ -188,6 +206,7 @@ program
                   enabled: true,
                   port: uiPort,
                   internalPort: uiInternalPort,
+                  autoStartUser: defaultUser,
                 }
               : undefined,
           },

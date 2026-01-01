@@ -56,6 +56,7 @@ export type FastMCPServerOptions = {
     enabled: boolean
     port: number
     internalPort?: number
+    autoStartUser?: string
   }
 }
 
@@ -1025,12 +1026,24 @@ export async function startServer(options: FastMCPServerOptions, transport: "std
     })
     log("✓ FastMCP server running with stdio transport")
 
-    // Start UI server if enabled in stdio mode
+    // Start UI if enabled in stdio mode
     if (options.ui?.enabled) {
-      await startUIServer({
-        port: options.ui.port,
-        duckpond,
-      })
+      if (options.ui.autoStartUser) {
+        // Auto-start UI directly for default user (no management server needed)
+        log(`Auto-starting UI for user: ${options.ui.autoStartUser}`)
+        const uiResult = await duckpond.startUI(options.ui.autoStartUser)
+        if (uiResult.success) {
+          console.error(`🖥️  DuckDB UI running at http://localhost:${duckpond.getUIPort()}`)
+        } else {
+          log(`Failed to auto-start UI: ${uiResult.error.message}`)
+        }
+      } else {
+        // No default user - start management server for manual user selection
+        await startUIServer({
+          port: options.ui.port,
+          duckpond,
+        })
+      }
     }
   } else {
     await server.start({
