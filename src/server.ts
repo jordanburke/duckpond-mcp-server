@@ -330,11 +330,17 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
         })
       : new FastMCP(baseConfig)
 
-  // BigInt-safe JSON serializer
-  const bigIntReplacer = (_key: string, value: unknown): unknown => {
+  // DuckDB type-safe JSON serializer (handles BigInt and timestamp objects)
+  const duckDBReplacer = (_key: string, value: unknown): unknown => {
     if (typeof value === "bigint") {
       // Convert to number if safe, otherwise string
       return Number.isSafeInteger(Number(value)) ? Number(value) : value.toString()
+    }
+    // Handle DuckDB timestamp objects {micros: bigint}
+    if (value && typeof value === "object" && "micros" in value) {
+      const micros = (value as { micros: bigint }).micros
+      const ms = typeof micros === "bigint" ? Number(micros / 1000n) : Number(micros) / 1000
+      return new Date(ms).toISOString()
     }
     return value
   }
@@ -359,7 +365,7 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
             rowCount: result.data.length,
             executionTime: result.executionTime,
           },
-          bigIntReplacer,
+          duckDBReplacer,
           2,
         )
       } catch (error) {
