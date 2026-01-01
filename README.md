@@ -185,11 +185,60 @@ Manually detach a user's database from the cache to free resources.
 - `DUCKPOND_THREADS` - Number of threads (default: `4`)
 - `DUCKPOND_CACHE_TYPE` - Cache type: `disk`, `memory`, `noop` (default: `disk`)
 
+#### Storage Configuration
+
+By default, DuckPond stores databases locally. For cloud deployments, configure R2 or S3.
+
+**Local Storage (Default)**
+
+```bash
+# Databases stored in ~/.duckpond/data by default
+# Customize with:
+export DUCKPOND_DATA_DIR=/path/to/data
+
+npx duckpond-mcp-server
+```
+
+**Cloudflare R2**
+
+```bash
+export DUCKPOND_R2_ACCOUNT_ID=your-account-id
+export DUCKPOND_R2_ACCESS_KEY_ID=your-access-key
+export DUCKPOND_R2_SECRET_ACCESS_KEY=your-secret-key
+export DUCKPOND_R2_BUCKET=your-bucket
+
+npx duckpond-mcp-server
+```
+
+**AWS S3**
+
+```bash
+export DUCKPOND_S3_REGION=us-east-1
+export DUCKPOND_S3_ACCESS_KEY_ID=your-access-key
+export DUCKPOND_S3_SECRET_ACCESS_KEY=your-secret-key
+export DUCKPOND_S3_BUCKET=your-bucket
+
+npx duckpond-mcp-server
+```
+
+**S3-Compatible (MinIO, etc.)**
+
+```bash
+export DUCKPOND_S3_REGION=us-east-1
+export DUCKPOND_S3_ACCESS_KEY_ID=minioadmin
+export DUCKPOND_S3_SECRET_ACCESS_KEY=minioadmin
+export DUCKPOND_S3_BUCKET=duckpond
+export DUCKPOND_S3_ENDPOINT=http://localhost:9000
+
+npx duckpond-mcp-server
+```
+
 #### Multi-Tenant Settings
 
 - `DUCKPOND_MAX_ACTIVE_USERS` - LRU cache size (default: `10`)
 - `DUCKPOND_EVICTION_TIMEOUT` - Idle timeout in ms (default: `300000`)
-- `DUCKPOND_STRATEGY` - Storage strategy: `parquet`, `duckdb`, `hybrid` (default: `parquet`)
+- `DUCKPOND_STRATEGY` - Storage strategy: `parquet`, `duckdb`, `hybrid` (default: `duckdb`)
+- `DUCKPOND_DATA_DIR` - Local data directory (default: `~/.duckpond/data`)
 
 #### Cloudflare R2 Configuration
 
@@ -272,40 +321,48 @@ npx duckpond-mcp-server --transport http
 ### DuckDB UI
 
 - `GET /ui` - UI status and available users
-- `GET /ui/:userId` - Start UI for specific user
-- `GET /ui/*` - Proxy to DuckDB UI server
+- `GET /ui/:userId` - Start UI for specific user (returns URL for direct access)
 
 ## DuckDB UI
 
 The MCP server includes built-in support for [DuckDB UI](https://duckdb.org/docs/stable/core_extensions/ui.html), allowing you to visually inspect and debug any user's database through a web browser.
 
-### HTTP Mode (default)
+### How It Works
 
-When running in HTTP mode, the UI is automatically available:
+1. **Start the UI** for a user via the `/ui/:userId` endpoint
+2. **Access directly** at `http://localhost:4213` (the internal DuckDB UI port)
+
+The UI runs on a separate port (default: 4213) because DuckDB UI requires specific browser features (SharedArrayBuffer) that work best with direct access.
+
+### HTTP Mode
 
 ```bash
 # Start server
 npx duckpond-mcp-server --transport http --port 3000
 
-# Open UI for user "claude"
-# Browser: http://localhost:3000/ui/claude
+# Start UI for user "claude"
+curl http://localhost:3000/ui/claude
+
+# Access UI directly
+# Browser: http://localhost:4213
 ```
 
-### stdio Mode
+### stdio Mode (Claude Desktop)
 
-For stdio mode (Claude Desktop), enable the UI server with the `--ui` flag:
+For stdio mode, enable the UI server with the `--ui` flag:
 
 ```bash
 # Start with UI enabled
 npx duckpond-mcp-server --transport stdio --ui --ui-port 4000
 
-# MCP communicates via stdin/stdout
-# UI available at: http://localhost:4000/ui/claude
+# Start UI for a user
+curl http://localhost:4000/ui/claude
+
+# Access UI directly
+# Browser: http://localhost:4213
 ```
 
-### Claude Desktop with UI
-
-Add UI support to your Claude Desktop config:
+### Claude Desktop Config
 
 ```json
 {
@@ -321,17 +378,31 @@ Add UI support to your Claude Desktop config:
 }
 ```
 
-Then browse to `http://localhost:4000/ui/claude` to inspect the database.
+Then: `curl http://localhost:4000/ui/claude` and open `http://localhost:4213` in your browser.
 
 ### Docker
 
 ```bash
-# Run with port mapping
-docker run -p 3000:3000 duckpond-mcp-server
+# Using docker-compose (recommended)
+docker compose up -d
 
-# Access UI
-# Browser: http://localhost:3000/ui/claude
+# Start UI for a user
+curl http://localhost:3000/ui/claude
+
+# Access UI directly
+# Browser: http://localhost:4213
 ```
+
+```bash
+# Simple docker run
+docker run -p 3000:3000 -p 4213:4213 duckpond-mcp-server
+
+# Start UI for a user, then access directly
+curl http://localhost:3000/ui/claude
+# Browser: http://localhost:4213
+```
+
+**Why direct port access?** DuckDB UI uses SharedArrayBuffer which requires specific CORS headers. Direct access to port 4213 ensures full compatibility with the UI's WebAssembly requirements.
 
 ### UI Features
 

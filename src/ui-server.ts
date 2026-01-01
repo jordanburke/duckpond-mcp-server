@@ -13,7 +13,7 @@ export type UIServerOptions = {
 
 /**
  * Start a lightweight HTTP server for UI access in stdio mode
- * This allows accessing DuckDB UI even when MCP is running over stdio
+ * This allows starting DuckDB UI even when MCP is running over stdio
  */
 export async function startUIServer(options: UIServerOptions): Promise<void> {
   const { port, duckpond } = options
@@ -21,25 +21,21 @@ export async function startUIServer(options: UIServerOptions): Promise<void> {
 
   const app = new Hono()
 
-  // GET /ui - Info endpoint when no UI running, or redirect to UI
+  // GET /ui - Info endpoint
   app.get("/ui", (c) => {
     const currentUser = duckpond.getCurrentUIUser()
-    if (!currentUser) {
-      const listResult = duckpond.listUsers()
-      return c.json({
-        message: "No UI active. Visit /ui/:userId to start DuckDB UI for a user.",
-        currentUser: null,
-        availableUsers: listResult.success ? listResult.data.users : [],
-        endpoints: {
-          startUI: `http://localhost:${port}/ui/:userId`,
-        },
-      })
-    }
-    // Redirect to the UI root
-    return c.redirect("/ui/")
+    const listResult = duckpond.listUsers()
+    return c.json({
+      message: currentUser
+        ? `UI active for user: ${currentUser}. Access directly at http://localhost:${uiInternalPort}`
+        : "No UI active. Visit /ui/:userId to start DuckDB UI for a user.",
+      currentUser,
+      uiUrl: currentUser ? `http://localhost:${uiInternalPort}` : null,
+      availableUsers: listResult.success ? listResult.data.users : [],
+    })
   })
 
-  // GET /ui/:userId - Start UI for a specific user and redirect
+  // GET /ui/:userId - Start UI for a specific user
   app.get("/ui/:userId", async (c) => {
     const userId = c.req.param("userId")
 
@@ -57,71 +53,12 @@ export async function startUIServer(options: UIServerOptions): Promise<void> {
       )
     }
 
-    // Redirect to the UI
-    return c.redirect("/ui/")
-  })
-
-  // ALL /ui/* - Proxy requests to DuckDB UI server
-  app.all("/ui/*", async (c) => {
-    const currentUser = duckpond.getCurrentUIUser()
-    if (!currentUser) {
-      return c.json(
-        {
-          error: "No UI active",
-          message: "Start UI by visiting /ui/:userId first",
-        },
-        400,
-      )
-    }
-
-    // Get the path after /ui
-    const path = c.req.path.replace(/^\/ui/, "") || "/"
-
-    try {
-      // Build the proxy URL
-      const proxyUrl = `http://localhost:${uiInternalPort}${path}`
-      const url = new URL(c.req.url)
-
-      // Prepare headers, filtering out host
-      const headers = new Headers()
-      c.req.raw.headers.forEach((value, key) => {
-        if (key.toLowerCase() !== "host") {
-          headers.set(key, value)
-        }
-      })
-
-      // Make the proxy request
-      const response = await fetch(proxyUrl + url.search, {
-        method: c.req.method,
-        headers,
-        body: ["GET", "HEAD"].includes(c.req.method) ? undefined : await c.req.arrayBuffer(),
-      })
-
-      // Return the proxied response
-      const responseHeaders = new Headers()
-      response.headers.forEach((value, key) => {
-        // Don't forward certain headers
-        if (!["transfer-encoding", "connection"].includes(key.toLowerCase())) {
-          responseHeaders.set(key, value)
-        }
-      })
-
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders,
-      })
-    } catch (error) {
-      log(`[UI Server] Proxy error: ${error instanceof Error ? error.message : String(error)}`)
-      return c.json(
-        {
-          error: "UI proxy error",
-          message: error instanceof Error ? error.message : "Failed to connect to DuckDB UI",
-          hint: "The DuckDB UI server may not be running. Try visiting /ui/:userId to restart it.",
-        },
-        502,
-      )
-    }
+    return c.json({
+      success: true,
+      message: `UI started for user: ${userId}`,
+      uiUrl: `http://localhost:${uiInternalPort}`,
+      hint: "Access the DuckDB UI directly at the uiUrl above",
+    })
   })
 
   // Root endpoint with info
@@ -131,55 +68,12 @@ export async function startUIServer(options: UIServerOptions): Promise<void> {
       name: "DuckPond UI Server",
       description: "Lightweight HTTP server for DuckDB UI access in stdio mode",
       currentUIUser: currentUser,
+      uiUrl: currentUser ? `http://localhost:${uiInternalPort}` : null,
       endpoints: {
-        ui: `http://localhost:${port}/ui/:userId`,
-        uiRoot: `http://localhost:${port}/ui/`,
+        startUI: `http://localhost:${port}/ui/:userId`,
+        status: `http://localhost:${port}/ui`,
       },
     })
-  })
-
-  // Fallback: Proxy unknown paths to DuckDB UI (for assets like JS/CSS)
-  // DuckDB UI uses <base href="/"> so assets are requested at root
-  app.all("*", async (c) => {
-    const currentUser = duckpond.getCurrentUIUser()
-    if (!currentUser) {
-      return c.notFound()
-    }
-
-    const path = c.req.path
-
-    try {
-      const proxyUrl = `http://localhost:${uiInternalPort}${path}`
-      const url = new URL(c.req.url)
-
-      const headers = new Headers()
-      c.req.raw.headers.forEach((value, key) => {
-        if (key.toLowerCase() !== "host") {
-          headers.set(key, value)
-        }
-      })
-
-      const response = await fetch(proxyUrl + url.search, {
-        method: c.req.method,
-        headers,
-        body: ["GET", "HEAD"].includes(c.req.method) ? undefined : await c.req.arrayBuffer(),
-      })
-
-      const responseHeaders = new Headers()
-      response.headers.forEach((value, key) => {
-        if (!["transfer-encoding", "connection"].includes(key.toLowerCase())) {
-          responseHeaders.set(key, value)
-        }
-      })
-
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders,
-      })
-    } catch {
-      return c.notFound()
-    }
   })
 
   // Start the server
@@ -190,4 +84,5 @@ export async function startUIServer(options: UIServerOptions): Promise<void> {
 
   log(`✓ UI server running at http://localhost:${port}/ui`)
   log(`  Visit http://localhost:${port}/ui/:userId to start DuckDB UI`)
+  log(`  Then access DuckDB UI directly at http://localhost:${uiInternalPort}`)
 }

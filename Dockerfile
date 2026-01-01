@@ -30,8 +30,8 @@ RUN mkdir -p /data && chown -R node:node /data
 # Switch to non-root user
 USER node
 
-# Expose HTTP port (MCP server)
-EXPOSE 3000
+# Expose HTTP port (MCP server) and DuckDB UI port
+EXPOSE 3000 4213
 
-# Run server in HTTP mode by default
-ENTRYPOINT ["node", "dist/index.js", "--transport", "http"]
+# Run server in HTTP mode with UI enabled by default
+ENTRYPOINT ["node", "dist/index.js", "--transport", "http", "--ui-internal-port", "4213"]

@@ -29,9 +29,12 @@ export type MCPResult<T> =
 
 /**
  * Configuration for DuckPond MCP Server
- * Currently identical to DuckPondConfig, but can be extended with server-specific options
+ * Extends DuckPondConfig with server-specific options
  */
-export type DuckPondServerConfig = DuckPondConfig
+export type DuckPondServerConfig = DuckPondConfig & {
+  /** Directory for persistent database storage (default: ~/.duckpond/data) */
+  dataDir?: string
+}
 
 /**
  * Core DuckPond MCP Server
@@ -43,6 +46,8 @@ export class DuckPondServer {
   private initialized = false
   private currentUIUserId: string | null = null
   private uiInternalPort: number = 4213
+  private uiKeepaliveTimer: ReturnType<typeof setInterval> | null = null
+  private readonly UI_KEEPALIVE_INTERVAL = 30000 // 30 seconds
 
   constructor(private config: DuckPondServerConfig) {
     log("DuckPondServer created")
@@ -242,6 +247,7 @@ export class DuckPondServer {
     }
 
     this.currentUIUserId = userId
+    this.startUIKeepalive(userId)
     log(`UI started for user ${userId} on port ${this.uiInternalPort}`)
 
     return {
@@ -252,9 +258,36 @@ export class DuckPondServer {
   }
 
   /**
+   * Start keepalive timer to prevent UI user from being evicted
+   */
+  private startUIKeepalive(userId: string): void {
+    this.stopUIKeepalive()
+    log(`Starting UI keepalive for user ${userId}`)
+    this.uiKeepaliveTimer = setInterval(async () => {
+      if (this.pond && this.currentUIUserId === userId) {
+        log(`UI keepalive ping for user ${userId}`)
+        await this.pond.query(userId, "SELECT 1")
+      }
+    }, this.UI_KEEPALIVE_INTERVAL)
+  }
+
+  /**
+   * Stop the keepalive timer
+   */
+  private stopUIKeepalive(): void {
+    if (this.uiKeepaliveTimer) {
+      log("Stopping UI keepalive")
+      clearInterval(this.uiKeepaliveTimer)
+      this.uiKeepaliveTimer = null
+    }
+  }
+
+  /**
    * Stop the currently running DuckDB UI
    */
   async stopUI(): Promise<MCPResult<void>> {
+    this.stopUIKeepalive()
+
     if (!this.currentUIUserId) {
       log("No UI running to stop")
       return { success: true, data: undefined }

@@ -23,18 +23,30 @@ import { loggers } from "./utils/logger"
 const log = loggers.main
 
 /**
+ * Get the default data directory for persistent storage
+ */
+function getDefaultDataDir(): string {
+  const home = process.env.HOME || process.env.USERPROFILE || "."
+  return `${home}/.duckpond/data`
+}
+
+/**
  * Parse environment variables into DuckPond configuration
  */
 function getConfigFromEnv(): DuckPondServerConfig {
+  // Default to local disk storage
+  const dataDir = process.env.DUCKPOND_DATA_DIR || getDefaultDataDir()
+
   const config: DuckPondServerConfig = {
     memoryLimit: process.env.DUCKPOND_MEMORY_LIMIT || "4GB",
     threads: parseInt(process.env.DUCKPOND_THREADS || "4"),
     maxActiveUsers: parseInt(process.env.DUCKPOND_MAX_ACTIVE_USERS || "10"),
     evictionTimeout: parseInt(process.env.DUCKPOND_EVICTION_TIMEOUT || "300000"),
     cacheType: (process.env.DUCKPOND_CACHE_TYPE as "disk" | "memory" | "noop") || "disk",
-    strategy: (process.env.DUCKPOND_STRATEGY as "parquet" | "duckdb" | "hybrid") || "parquet",
+    strategy: (process.env.DUCKPOND_STRATEGY as "parquet" | "duckdb" | "hybrid") || "duckdb",
     tempDir: process.env.DUCKPOND_TEMP_DIR,
-    cacheDir: process.env.DUCKPOND_CACHE_DIR,
+    cacheDir: process.env.DUCKPOND_CACHE_DIR || dataDir,
+    dataDir,
   }
 
   // R2 configuration
@@ -89,6 +101,7 @@ program
         threads: config.threads,
         maxActiveUsers: config.maxActiveUsers,
         strategy: config.strategy,
+        dataDir: config.dataDir,
         tempDir: config.tempDir,
         cacheDir: config.cacheDir,
         cacheType: config.cacheType,
@@ -96,6 +109,15 @@ program
         hasS3: !!config.s3,
         defaultUser: defaultUser || "(not set)",
       })
+
+      // Log storage mode
+      if (config.r2) {
+        console.error("☁️  Storage: Cloudflare R2")
+      } else if (config.s3) {
+        console.error("☁️  Storage: AWS S3")
+      } else {
+        console.error(`💾 Storage: Local disk (${config.dataDir})`)
+      }
 
       if (defaultUser) {
         console.error(`👤 Default user: ${defaultUser}`)
