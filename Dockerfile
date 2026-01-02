@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Copy package files first for better caching
 COPY package.json pnpm-lock.yaml ./
-COPY tsconfig.json tsup.config.ts ./
+COPY tsconfig.json tsdown.config.ts ts-builds.config.json .npmrc ./
 
 # Copy source files
 COPY src ./src
@@ -19,7 +19,7 @@ COPY src ./src
 RUN pnpm install --frozen-lockfile --prod=false && \
     pnpm run build && \
     pnpm prune --prod && \
-    rm -rf src tsconfig.json tsup.config.ts
+    rm -rf src tsconfig.json tsdown.config.ts ts-builds.config.json
 
 # Set environment variables
 ENV NODE_ENV=production
