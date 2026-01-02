@@ -348,7 +348,7 @@ export class DuckPondServer {
   ): MCPResult<T> {
     return result.fold(
       (error) => ({
-        success: false,
+        success: false as const,
         error: {
           code: this.mapErrorCode(error.code),
           message: error.message,
@@ -360,7 +360,7 @@ export class DuckPondServer {
         },
       }),
       (data) => ({
-        success: true,
+        success: true as const,
         data,
         executionTime,
       }),

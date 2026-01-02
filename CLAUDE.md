@@ -7,14 +7,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **IMPORTANT**: At the start of each conversation, load the memory system to recall context:
 
 ```sql
--- 1. Check available queries
-SELECT name, description FROM memory_queries;
+-- 1. Health check (verify system integrity)
+SELECT * FROM memory_health;
 
 -- 2. Load active memories (high fitness, not archived)
 SELECT type, category, key, value, fitness_score FROM active_memories;
 
--- 3. Check memory relations
+-- 3. Check for promotion candidates (memories ready to hardwire)
+SELECT key, value, suggested_target FROM promotion_candidates;
+
+-- 4. Check memory relations
 SELECT * FROM memory_graph;
+```
+
+**If health check fails or tables missing**, run schema validation:
+
+```sql
+SELECT name, status FROM validate_schema_query;  -- or check memory_queries for 'validate_schema'
 ```
 
 ### Memory Operations Quick Reference
