@@ -45,8 +45,8 @@ importers:
         specifier: ~24.10.4
         version: 24.10.4
       ts-builds:
-        specifier: ^2.0.0
-        version: 2.0.0(tsdown@0.18.4(synckit@0.11.11)(typescript@5.9.3))(tsx@4.21.0)
+        specifier: ^2.0.1
+        version: 2.0.1(tsdown@0.18.4(synckit@0.11.11)(typescript@5.9.3))(tsx@4.21.0)
       tsdown:
         specifier: ^0.18.4
         version: 0.18.4(synckit@0.11.11)(typescript@5.9.3)
@@ -2686,9 +2686,9 @@ packages:
     peerDependencies:
       typescript: ">=4.8.4"
 
-  ts-builds@2.0.0:
+  ts-builds@2.0.1:
     resolution:
-      { integrity: sha512-xf3PF6DzvRgNDN5jbl+nR560D9d7jVcVSdQJUoLlc7C/0RSXrV9SgPVSfwRSAj1U+ZY+QeSXd0r80WuEiDm/mw== }
+      { integrity: sha512-Ji/ImkRm9neDdpQOGZAdfjS/D+S/B2vkp9Sc3+wlcznEJGlf6pjZ4hsFkSMBI7qShLkKAE5P+nKl+/GrgcL/SA== }
     hasBin: true
     peerDependencies:
       tsdown: ^0.x
@@ -3270,7 +3270,7 @@ snapshots:
       strict-event-emitter-types: 2.0.0
       undici: 7.16.0
       uri-templates: 0.2.0
-      xsschema: 0.4.0-beta.5(zod-to-json-schema@3.25.1(zod@3.25.76))(zod@4.3.4)
+      xsschema: 0.4.0-beta.5(zod-to-json-schema@3.25.1(zod@4.3.4))(zod@4.3.4)
       yargs: 18.0.0
       zod: 4.3.4
       zod-to-json-schema: 3.25.1(zod@4.3.4)
@@ -5271,7 +5271,7 @@ snapshots:
     dependencies:
       typescript: 5.9.3
 
-  ts-builds@2.0.0(tsdown@0.18.4(synckit@0.11.11)(typescript@5.9.3))(tsx@4.21.0):
+  ts-builds@2.0.1(tsdown@0.18.4(synckit@0.11.11)(typescript@5.9.3))(tsx@4.21.0):
     dependencies:
       "@eslint/eslintrc": 3.3.3
       "@eslint/js": 9.39.2
@@ -5577,7 +5577,7 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  xsschema@0.4.0-beta.5(zod-to-json-schema@3.25.1(zod@3.25.76))(zod@4.3.4):
+  xsschema@0.4.0-beta.5(zod-to-json-schema@3.25.1(zod@4.3.4))(zod@4.3.4):
     optionalDependencies:
       zod: 4.3.4
       zod-to-json-schema: 3.25.1(zod@4.3.4)
