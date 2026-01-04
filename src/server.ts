@@ -1018,7 +1018,43 @@ function setupUIEndpoints(
   log("✓ UI endpoints added")
 }
 
-export async function startServer(options: FastMCPServerOptions, transport: "stdio" | "http"): Promise<void> {
+export type StartServerOptions = {
+  options: FastMCPServerOptions
+  transport: "stdio" | "http"
+  /** Hook called after DuckPond init but before server start - use to register custom tools */
+  beforeStart?: (ctx: { server: FastMCP; duckpond: DuckPondServer }) => void | Promise<void>
+}
+
+/**
+ * Start the DuckPond MCP server with full configuration
+ *
+ * @example
+ * ```typescript
+ * import { startServer, getDefaultUserId } from "duckpond-mcp-server/lib"
+ *
+ * await startServer({
+ *   options: { config: { dataDir: "~/data" }, ui: { enabled: true, port: 4000, autoStartUser: "claude" } },
+ *   transport: "stdio",
+ *   beforeStart: async ({ server, duckpond }) => {
+ *     // Register custom tools before server starts
+ *     server.addTool({ name: "my_tool", ... })
+ *   }
+ * })
+ * ```
+ */
+export async function startServer(opts: StartServerOptions): Promise<void>
+/** @deprecated Use object form: startServer({ options, transport, beforeStart }) */
+export async function startServer(options: FastMCPServerOptions, transport: "stdio" | "http"): Promise<void>
+export async function startServer(
+  optsOrOptions: StartServerOptions | FastMCPServerOptions,
+  transportArg?: "stdio" | "http",
+): Promise<void> {
+  // Handle both old and new signatures
+  const isNewSignature = "options" in optsOrOptions && "transport" in optsOrOptions
+  const options = isNewSignature ? optsOrOptions.options : optsOrOptions
+  const transport = isNewSignature ? optsOrOptions.transport : transportArg!
+  const beforeStart = isNewSignature ? optsOrOptions.beforeStart : undefined
+
   const { server, duckpond } = createFastMCPServer(options)
 
   // Initialize DuckPond
@@ -1028,6 +1064,11 @@ export async function startServer(options: FastMCPServerOptions, transport: "std
   }
 
   log("DuckPond initialized successfully")
+
+  // Call beforeStart hook if provided (allows registering custom tools)
+  if (beforeStart) {
+    await beforeStart({ server, duckpond })
+  }
 
   // Set UI internal port if configured
   if (options.ui?.internalPort) {

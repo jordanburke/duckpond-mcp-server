@@ -3,7 +3,24 @@
  *
  * Use this module to create MCP servers that extend duckpond's capabilities.
  *
- * @example
+ * @example Using startServer with beforeStart hook (recommended)
+ * ```typescript
+ * import { startServer, getDefaultUserId } from "duckpond-mcp-server/lib"
+ *
+ * await startServer({
+ *   options: {
+ *     config: { dataDir: "~/data" },
+ *     ui: { enabled: true, port: 4000, autoStartUser: getDefaultUserId() }
+ *   },
+ *   transport: "stdio",
+ *   beforeStart: async ({ server, duckpond }) => {
+ *     // Register custom tools before server starts
+ *     server.addTool({ name: "my_tool", ... })
+ *   }
+ * })
+ * ```
+ *
+ * @example Using createFastMCPServer for more control
  * ```typescript
  * import { createFastMCPServer } from "duckpond-mcp-server/lib"
  *
@@ -15,14 +32,14 @@
  * // Add your custom tools to the server
  * server.addTool({ name: "my_tool", ... })
  *
- * // Start the server
+ * // Start the server manually
  * await server.start({ transportType: "stdio" })
  * ```
  */
 
-// Server creation
-export type { FastMCPServerOptions } from "./server.js"
-export { createFastMCPServer } from "./server.js"
+// Server creation and startup
+export type { FastMCPServerOptions, StartServerOptions } from "./server.js"
+export { createFastMCPServer, startServer } from "./server.js"
 
 // Core DuckPond server
 export type { DuckPondServerConfig } from "./server-core.js"
