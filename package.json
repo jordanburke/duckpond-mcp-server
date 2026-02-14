@@ -1,6 +1,6 @@
 {
   "name": "duckpond-mcp-server",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "MCP server for multi-tenant DuckDB management with R2/S3 storage",
   "keywords": [
     "mcp",
@@ -42,22 +42,22 @@
     "prepublishOnly": "pnpm validate"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.7",
-    "@jordanburke/fastmcp": "3.26.700",
+    "@hono/node-server": "^1.19.9",
+    "fastmcp": "3.32.0",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "commander": "^14.0.2",
+    "commander": "^14.0.3",
     "debug": "^4.4.3",
-    "duckpond": "^0.4.0",
+    "duckpond": "^0.4.1",
     "express": "^5.2.1",
-    "hono": "^4.11.3",
+    "hono": "^4.11.9",
     "jsonwebtoken": "^9.0.3",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "~24.10.4",
-    "ts-builds": "^2.1.0",
-    "tsdown": "^0.18.4",
+    "@types/node": "~24.10.13",
+    "ts-builds": "^2.4.0",
+    "tsdown": "^0.20.3",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
@@ -79,5 +79,5 @@
     "dist"
   ],
   "prettier": "ts-builds/prettier",
-  "packageManager": "pnpm@10.27.0+sha512.72d699da16b1179c14ba9e64dc71c9a40988cbdc65c264cb0e489db7de917f20dcf4d64d8723625f2969ba52d4b7e2a1170682d9ac2a5dcaeaab732b7e16f04a"
+  "packageManager": "pnpm@10.29.3+sha512.498e1fb4cca5aa06c1dcf2611e6fafc50972ffe7189998c409e90de74566444298ffe43e6cd2acdc775ba1aa7cc5e092a8b7054c811ba8c5770f84693d33d2dc"
 }

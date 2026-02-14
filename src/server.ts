@@ -5,8 +5,8 @@ if (!globalThis.crypto) {
   globalThis.crypto = webcrypto as Crypto
 }
 
-import { FastMCP } from "@jordanburke/fastmcp"
 import { createHash, randomBytes } from "crypto"
+import { FastMCP } from "fastmcp"
 import { createRequire } from "module"
 
 const require = createRequire(import.meta.url)
