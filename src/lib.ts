@@ -38,7 +38,7 @@
  */
 
 // Server creation and startup
-export type { FastMCPServerOptions, StartServerOptions } from "./server.js"
+export type { BearerTokenConfig, FastMCPServerOptions, StartServerOptions } from "./server.js"
 export { createFastMCPServer, startServer } from "./server.js"
 
 // Core DuckPond server

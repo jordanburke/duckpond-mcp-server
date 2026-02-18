@@ -41,6 +41,11 @@ export type OAuthConfig = {
   resource?: string
 }
 
+export type BearerTokenConfig = {
+  token: string
+  userId?: string
+}
+
 export type FastMCPServerOptions = {
   config: DuckPondServerConfig
   port?: number
@@ -52,6 +57,7 @@ export type FastMCPServerOptions = {
     userId?: string
     email?: string
   }
+  bearerToken?: BearerTokenConfig
   ui?: {
     enabled: boolean
     port: number
@@ -145,9 +151,9 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
     },
   }
 
-  // Create server with authentication (OAuth, Basic Auth, or none)
+  // Create server with authentication (OAuth, Basic Auth, Bearer Token, or none)
   const server =
-    options.oauth?.enabled || options.basicAuth
+    options.oauth?.enabled || options.basicAuth || options.bearerToken
       ? new FastMCP<AuthSession>({
           ...baseConfig,
           oauth: {
@@ -238,6 +244,39 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
                   },
                 )
               }
+            }
+
+            // Handle static Bearer Token authentication
+            if (options.bearerToken && authHeader.startsWith("Bearer ")) {
+              const token = authHeader.slice(7)
+
+              if (token === options.bearerToken.token) {
+                return Promise.resolve({
+                  userId: options.bearerToken.userId || "bearer-user",
+                  email: "",
+                  scope: "read write",
+                })
+              }
+
+              // If bearer token is configured but doesn't match, and OAuth is not enabled, reject
+              if (!options.oauth?.enabled) {
+                throw new Response(
+                  JSON.stringify({
+                    error: "invalid_token",
+                    error_description: "Invalid bearer token",
+                  }),
+                  {
+                    status: 401,
+                    statusText: "Unauthorized",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "WWW-Authenticate": `Bearer realm="MCP", error="invalid_token"`,
+                    },
+                  },
+                )
+              }
+
+              // Fall through to OAuth JWT validation if OAuth is also enabled
             }
 
             // Handle Bearer Token (OAuth) - Validate JWT
@@ -540,6 +579,7 @@ export function createFastMCPServer(options: FastMCPServerOptions): {
         authentication: {
           oauth: options.oauth?.enabled || false,
           basicAuth: !!options.basicAuth,
+          bearerToken: !!options.bearerToken,
         },
       },
       endpoints: {

@@ -176,6 +176,20 @@ program
         console.error(`   User ID: ${basicAuthConfig.userId || basicAuthConfig.username}`)
       }
 
+      // Load Bearer Token configuration from environment variables
+      let bearerTokenConfig: { token: string; userId?: string } | undefined
+      if (process.env.DUCKPOND_BEARER_TOKEN) {
+        bearerTokenConfig = {
+          token: process.env.DUCKPOND_BEARER_TOKEN,
+          userId: process.env.DUCKPOND_BEARER_TOKEN_USER_ID,
+        }
+
+        console.error("🔐 Bearer token authentication enabled")
+        if (bearerTokenConfig.userId) {
+          console.error(`   User ID: ${bearerTokenConfig.userId}`)
+        }
+      }
+
       // Parse UI options
       const uiEnabled = options.ui || process.env.DUCKPOND_UI_ENABLED === "true"
       const uiPort = parseInt(options.uiPort) || 4000
@@ -201,6 +215,7 @@ program
             endpoint: "/mcp",
             oauth: oauthConfig,
             basicAuth: basicAuthConfig,
+            bearerToken: bearerTokenConfig,
             ui: uiEnabled
               ? {
                   enabled: true,
